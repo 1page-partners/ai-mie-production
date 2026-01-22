@@ -3,14 +3,14 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatArea } from "@/components/chat/ChatArea";
 import { ContextPanel } from "@/components/chat/ContextPanel";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import type { Tables } from "@/integrations/supabase/types";
-
-type Conversation = Tables<"conversations">;
-type Message = Tables<"conversation_messages">;
-type Memory = Tables<"memories">;
-type KnowledgeChunk = Tables<"knowledge_chunks"> & { source_name?: string };
+import { authService } from "@/lib/services/auth";
+import { conversationsService, type Conversation, type Message } from "@/lib/services/conversations";
+import { contextService, type Memory, type KnowledgeChunk } from "@/lib/services/context";
+import { buildContextText } from "@/lib/services/contextText";
+import { difyService } from "@/lib/services/dify";
+import { refsService } from "@/lib/services/refs";
+import { feedbackService } from "@/lib/services/feedback";
 
 export default function ChatPage() {
   const { toast } = useToast();
@@ -31,7 +31,9 @@ export default function ChatPage() {
   useEffect(() => {
     if (selectedConversation) {
       loadMessages(selectedConversation.id);
-      loadReferences(selectedConversation.id);
+      // 右ペインは「今回のターン」の参照のみ表示するため、切替時はクリア
+      setReferencedMemories([]);
+      setReferencedChunks([]);
     } else {
       setMessages([]);
       setReferencedMemories([]);
@@ -42,13 +44,8 @@ export default function ChatPage() {
   const loadConversations = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("conversations")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setConversations(data || []);
+      const data = await conversationsService.listConversations();
+      setConversations(data);
     } catch (error) {
       toast({
         title: "Error",
@@ -62,14 +59,8 @@ export default function ChatPage() {
 
   const loadMessages = async (conversationId: string) => {
     try {
-      const { data, error } = await supabase
-        .from("conversation_messages")
-        .select("*")
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
-
-      if (error) throw error;
-      setMessages(data || []);
+      const data = await conversationsService.listMessages(conversationId);
+      setMessages(data);
     } catch (error) {
       toast({
         title: "Error",
@@ -79,54 +70,9 @@ export default function ChatPage() {
     }
   };
 
-  const loadReferences = async (conversationId: string) => {
-    try {
-      // Load memory refs
-      const { data: memoryRefs } = await supabase
-        .from("memory_refs")
-        .select("memory_id")
-        .eq("conversation_id", conversationId);
-
-      if (memoryRefs && memoryRefs.length > 0) {
-        const memoryIds = memoryRefs.map(r => r.memory_id);
-        const { data: memories } = await supabase
-          .from("memories")
-          .select("*")
-          .in("id", memoryIds);
-        setReferencedMemories(memories || []);
-      } else {
-        setReferencedMemories([]);
-      }
-
-      // Load knowledge refs
-      const { data: knowledgeRefs } = await supabase
-        .from("knowledge_refs")
-        .select("chunk_id")
-        .eq("conversation_id", conversationId);
-
-      if (knowledgeRefs && knowledgeRefs.length > 0) {
-        const chunkIds = knowledgeRefs.map(r => r.chunk_id);
-        const { data: chunks } = await supabase
-          .from("knowledge_chunks")
-          .select("*, knowledge_sources(name)")
-          .in("id", chunkIds);
-        
-        const chunksWithSourceName = (chunks || []).map(c => ({
-          ...c,
-          source_name: (c.knowledge_sources as any)?.name,
-        }));
-        setReferencedChunks(chunksWithSourceName);
-      } else {
-        setReferencedChunks([]);
-      }
-    } catch (error) {
-      console.error("Failed to load references:", error);
-    }
-  };
-
   const createConversation = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await authService.getUser();
       if (!user) {
         toast({
           title: "Error",
@@ -136,16 +82,10 @@ export default function ChatPage() {
         return;
       }
 
-      const { data, error } = await supabase
-        .from("conversations")
-        .insert({ 
-          title: "New Conversation",
-          user_id: user.id 
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
+      const data = await conversationsService.createConversation({
+        userId: user.id,
+        title: "New Conversation",
+      });
       setConversations(prev => [data, ...prev]);
       setSelectedConversation(data);
     } catch (error) {
@@ -159,12 +99,7 @@ export default function ChatPage() {
 
   const updateConversationTitle = async (id: string, title: string) => {
     try {
-      const { error } = await supabase
-        .from("conversations")
-        .update({ title })
-        .eq("id", id);
-
-      if (error) throw error;
+      await conversationsService.updateConversationTitle(id, title);
       setConversations(prev =>
         prev.map(c => (c.id === id ? { ...c, title } : c))
       );
@@ -180,32 +115,6 @@ export default function ChatPage() {
     }
   };
 
-  const searchContext = async (query: string) => {
-    // Simple keyword search (will be replaced with vector search later)
-    const searchTerm = `%${query}%`;
-    
-    const { data: memories } = await supabase
-      .from("memories")
-      .select("*")
-      .ilike("content", searchTerm)
-      .eq("is_active", true)
-      .limit(5);
-
-    const { data: chunks } = await supabase
-      .from("knowledge_chunks")
-      .select("*, knowledge_sources(name)")
-      .ilike("content", searchTerm)
-      .limit(5);
-
-    return {
-      memories: memories || [],
-      chunks: (chunks || []).map(c => ({
-        ...c,
-        source_name: (c.knowledge_sources as any)?.name,
-      })),
-    };
-  };
-
   const sendMessage = async (content: string) => {
     if (!selectedConversation) {
       toast({
@@ -216,7 +125,7 @@ export default function ChatPage() {
       return;
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await authService.getUser();
     if (!user) {
       toast({
         title: "Error",
@@ -228,79 +137,84 @@ export default function ChatPage() {
 
     setIsSending(true);
     try {
-      // 1. Save user message
-      const { data: userMessage, error: userMsgError } = await supabase
-        .from("conversation_messages")
-        .insert({
-          conversation_id: selectedConversation.id,
-          user_id: user.id,
-          role: "user",
-          content,
-          meta: {},
-        })
-        .select()
-        .single();
-
-      if (userMsgError) throw userMsgError;
+      // 1) user message を保存
+      const userMessage = await conversationsService.addMessage({
+        conversationId: selectedConversation.id,
+        userId: user.id,
+        role: "user",
+        content,
+      });
       setMessages(prev => [...prev, userMessage]);
 
-      // 2. Search for context
-      const context = await searchContext(content);
-      setReferencedMemories(context.memories);
-      setReferencedChunks(context.chunks);
+      // 2) context検索（LIKE）
+      const [memories, chunks] = await Promise.all([
+        contextService.searchMemories({ queryText: content, limit: 8, projectId: selectedConversation.project_id }),
+        contextService.searchKnowledge({ queryText: content, limit: 6, projectId: selectedConversation.project_id }),
+      ]);
 
-      // 3. Generate mock assistant response (Dify integration placeholder)
-      const contextSummary = [
-        ...context.memories.map(m => `Memory: ${m.content}`),
-        ...context.chunks.map(c => `Knowledge: ${c.content}`),
-      ].join("\n");
+      // 3) contextText生成
+      const contextText = buildContextText({ memories, chunks });
 
-      // Mock response - will be replaced with Dify API call
-      const assistantContent = `Based on the context provided, here's my response to: "${content}"\n\n` +
-        (contextSummary ? `I found relevant information:\n${contextSummary.substring(0, 200)}...` : 
-        "I don't have specific context for this query, but I'm here to help!");
+      // 4) Dify呼び出し（継続IDは直近assistantメッセージmetaから拾う）
+      const lastAssistant = [...messages, userMessage].slice().reverse().find((m) => m.role === "assistant");
+      const lastDifyConversationId = (lastAssistant?.meta as any)?.difyConversationId as string | undefined;
 
-      // 4. Save assistant message
-      const { data: assistantMessage, error: assistantMsgError } = await supabase
-        .from("conversation_messages")
-        .insert({
-          conversation_id: selectedConversation.id,
-          user_id: user.id,
-          role: "assistant",
-          content: assistantContent,
-          meta: {},
-        })
-        .select()
-        .single();
+      const dify = await difyService.chat({
+        userText: content,
+        difyConversationId: lastDifyConversationId ?? null,
+        contextText,
+        userId: user.id,
+        conversationId: selectedConversation.id,
+      });
 
-      if (assistantMsgError) throw assistantMsgError;
+      // Difyが参照IDを返せない場合は「注入した上位N件」をログにする
+      const usedMemoryIds = dify.usedMemoryIds.length ? dify.usedMemoryIds : memories.map((m) => m.id);
+      const usedChunkIds = dify.usedChunkIds.length ? dify.usedChunkIds : chunks.map((c) => c.id);
+
+      // 5) assistant message を保存（metaにdifyConversationId/参照IDs）
+      const assistantMessage = await conversationsService.addMessage({
+        conversationId: selectedConversation.id,
+        userId: user.id,
+        role: "assistant",
+        content: dify.answerText,
+        meta: {
+          difyConversationId: dify.difyConversationId,
+          memory_ids: usedMemoryIds,
+          knowledge_chunk_ids: usedChunkIds,
+        },
+      });
       setMessages(prev => [...prev, assistantMessage]);
 
-      // 5. Save memory references
-      for (const memory of context.memories) {
-        await supabase.from("memory_refs").insert({
-          conversation_id: selectedConversation.id,
-          memory_id: memory.id,
-          assistant_message_id: assistantMessage.id,
-          score: 0.8, // Mock score
-        });
-      }
+      // 6) refs保存
+      const usedMemories = memories
+        .filter((m) => usedMemoryIds.includes(m.id))
+        .map((m) => ({ id: m.id, score: null }));
+      const usedChunks = chunks
+        .filter((c) => usedChunkIds.includes(c.id))
+        .map((c) => ({ id: c.id, score: null }));
 
-      // 6. Save knowledge references
-      for (const chunk of context.chunks) {
-        await supabase.from("knowledge_refs").insert({
-          conversation_id: selectedConversation.id,
-          chunk_id: chunk.id,
-          assistant_message_id: assistantMessage.id,
-          score: 0.8, // Mock score
-        });
-      }
+      await Promise.all([
+        refsService.saveMemoryRefs({
+          conversationId: selectedConversation.id,
+          assistantMessageId: assistantMessage.id,
+          memories: usedMemories,
+        }),
+        refsService.saveKnowledgeRefs({
+          conversationId: selectedConversation.id,
+          assistantMessageId: assistantMessage.id,
+          chunks: usedChunks,
+        }),
+      ]);
+
+      // 7) UI右ペイン（今回のターンのみ）
+      setReferencedMemories(memories.filter((m) => usedMemoryIds.includes(m.id)));
+      setReferencedChunks(chunks.filter((c) => usedChunkIds.includes(c.id)));
 
     } catch (error) {
       console.error("Send message error:", error);
       toast({
         title: "Error",
-        description: "Failed to send message",
+        description: error instanceof Error ? error.message : "Failed to send message",
         variant: "destructive",
       });
     } finally {
@@ -311,7 +225,7 @@ export default function ChatPage() {
   const submitFeedback = async (messageId: string, rating: number, comment?: string) => {
     if (!selectedConversation) return;
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await authService.getUser();
     if (!user) {
       toast({
         title: "Error",
@@ -322,15 +236,13 @@ export default function ChatPage() {
     }
 
     try {
-      const { error } = await supabase.from("feedback").insert({
-        conversation_id: selectedConversation.id,
-        message_id: messageId,
-        user_id: user.id,
+      await feedbackService.saveFeedback({
+        conversationId: selectedConversation.id,
+        messageId,
+        userId: user.id,
         rating,
         comment,
       });
-
-      if (error) throw error;
       toast({
         title: "Feedback submitted",
         description: "Thank you for your feedback!",
@@ -338,7 +250,7 @@ export default function ChatPage() {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to submit feedback",
+        description: error instanceof Error ? error.message : "Failed to submit feedback",
         variant: "destructive",
       });
     }
