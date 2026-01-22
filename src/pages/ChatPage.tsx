@@ -11,6 +11,7 @@ import { buildContextText } from "@/lib/services/contextText";
 import { difyService } from "@/lib/services/dify";
 import { refsService } from "@/lib/services/refs";
 import { feedbackService } from "@/lib/services/feedback";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function ChatPage() {
   const { toast } = useToast();
@@ -22,9 +23,34 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
+  // NOTE: 認証UIをバイパスしている間だけ、RLSに通すため匿名サインインを自動実行する。
+  // 失敗する場合は Supabase Auth 設定で Anonymous sign-ins を有効化してください。
+  const ensureUser = async () => {
+    const { data: userRes } = await supabase.auth.getUser();
+    if (userRes?.user) return userRes.user;
+
+    // まずは既存サービス（通常のログイン）も試す
+    const existing = await authService.getUser();
+    if (existing) return existing;
+
+    const { data, error } = await supabase.auth.signInAnonymously();
+    if (error) throw error;
+    if (!data.user) throw new Error("Anonymous sign-in failed");
+    return data.user;
+  };
+
   // Load conversations
   useEffect(() => {
-    loadConversations();
+    (async () => {
+      try {
+        // 未ログインでもDB(RLS)アクセスできるようにする
+        await ensureUser();
+      } catch (e) {
+        console.warn("ensureUser failed", e);
+      } finally {
+        loadConversations();
+      }
+    })();
   }, []);
 
   // Load messages when conversation changes
@@ -72,15 +98,7 @@ export default function ChatPage() {
 
   const createConversation = async () => {
     try {
-      const user = await authService.getUser();
-      if (!user) {
-        toast({
-          title: "Error",
-          description: "Please sign in to create conversations",
-          variant: "destructive",
-        });
-        return;
-      }
+      const user = await ensureUser();
 
       const data = await conversationsService.createConversation({
         userId: user.id,
@@ -91,7 +109,10 @@ export default function ChatPage() {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to create conversation",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to create conversation",
         variant: "destructive",
       });
     }
@@ -125,15 +146,7 @@ export default function ChatPage() {
       return;
     }
 
-    const user = await authService.getUser();
-    if (!user) {
-      toast({
-        title: "Error",
-        description: "Please sign in to send messages",
-        variant: "destructive",
-      });
-      return;
-    }
+    const user = await ensureUser();
 
     setIsSending(true);
     try {
@@ -225,15 +238,7 @@ export default function ChatPage() {
   const submitFeedback = async (messageId: string, rating: number, comment?: string) => {
     if (!selectedConversation) return;
 
-    const user = await authService.getUser();
-    if (!user) {
-      toast({
-        title: "Error",
-        description: "Please sign in to submit feedback",
-        variant: "destructive",
-      });
-      return;
-    }
+    const user = await ensureUser();
 
     try {
       await feedbackService.saveFeedback({
