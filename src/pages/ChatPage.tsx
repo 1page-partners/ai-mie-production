@@ -273,6 +273,7 @@ export default function ChatPage() {
           isLoading={isLoading}
         />
         <ChatArea
+          conversationId={selectedConversation?.id}
           messages={messages}
           onSendMessage={sendMessage}
           onSubmitFeedback={submitFeedback}
