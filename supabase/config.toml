@@ -1,1 +1,4 @@
 project_id = "upscuqkxjvhzcriwljjl"
+
+[functions.dify-chat]
+verify_jwt = false

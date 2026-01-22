@@ -22,11 +22,10 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Navigate to="/chat" replace />} />
           <Route path="/login" element={<LoginPage />} />
-          {/* TODO: 本番では ProtectedRoute に戻す */}
-          <Route path="/chat" element={<ChatPage />} />
-          <Route path="/memory" element={<MemoryPage />} />
-          <Route path="/knowledge" element={<KnowledgePage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+          <Route path="/memory" element={<ProtectedRoute><MemoryPage /></ProtectedRoute>} />
+          <Route path="/knowledge" element={<ProtectedRoute><KnowledgePage /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
