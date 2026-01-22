@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from "react";
-import { Send, ThumbsUp, ThumbsDown, MessageCircle } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { MessageCircle, Send, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,6 +17,7 @@ import type { Tables } from "@/integrations/supabase/types";
 type Message = Tables<"conversation_messages">;
 
 interface ChatAreaProps {
+  conversationId?: string | null;
   messages: Message[];
   onSendMessage: (content: string) => void;
   onSubmitFeedback: (messageId: string, rating: number, comment?: string) => void;
@@ -25,6 +26,7 @@ interface ChatAreaProps {
 }
 
 export function ChatArea({
+  conversationId,
   messages,
   onSendMessage,
   onSubmitFeedback,
@@ -35,6 +37,57 @@ export function ChatArea({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [feedbackMessageId, setFeedbackMessageId] = useState<string | null>(null);
   const [feedbackComment, setFeedbackComment] = useState("");
+
+  const hiddenStorageKey = useMemo(() => {
+    const id = conversationId ?? "none";
+    return `ai-mie:hiddenMessageIds:${id}`;
+  }, [conversationId]);
+
+  const [hiddenMessageIds, setHiddenMessageIds] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(hiddenStorageKey);
+      if (!raw) return new Set();
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return new Set(parsed.filter((x) => typeof x === "string"));
+      return new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  // 会話切替時にlocalStorageから読み直す
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(hiddenStorageKey);
+      if (!raw) {
+        setHiddenMessageIds(new Set());
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setHiddenMessageIds(new Set(parsed.filter((x) => typeof x === "string")));
+      } else {
+        setHiddenMessageIds(new Set());
+      }
+    } catch {
+      setHiddenMessageIds(new Set());
+    }
+  }, [hiddenStorageKey]);
+
+  const persistHiddenIds = (next: Set<string>) => {
+    setHiddenMessageIds(next);
+    try {
+      localStorage.setItem(hiddenStorageKey, JSON.stringify(Array.from(next)));
+    } catch {
+      // ignore
+    }
+  };
+
+  const hideMessage = (messageId: string) => {
+    const next = new Set(hiddenMessageIds);
+    next.add(messageId);
+    persistHiddenIds(next);
+  };
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -77,11 +130,13 @@ export function ChatArea({
     );
   }
 
+  const visibleMessages = messages.filter((m) => !hiddenMessageIds.has(m.id));
+
   return (
     <div className="flex flex-1 flex-col bg-background">
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         <div className="space-y-4 max-w-3xl mx-auto">
-          {messages.map((message) => (
+          {visibleMessages.map((message) => (
             <div
               key={message.id}
               className={cn(
@@ -97,6 +152,19 @@ export function ChatArea({
                     : "bg-muted text-foreground"
                 )}
               >
+                <div className="mb-1 flex items-start justify-between gap-2">
+                  <div className="min-w-0" />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6 shrink-0"
+                    onClick={() => hideMessage(message.id)}
+                    aria-label="Hide message"
+                    title="UI上で非表示（DBは削除しません）"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
                 <p className="whitespace-pre-wrap text-sm">{message.content}</p>
                 
                 {message.role === "assistant" && (
