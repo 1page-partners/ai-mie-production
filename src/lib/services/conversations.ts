@@ -67,4 +67,35 @@ export const conversationsService = {
     if (error) throw error;
     return data;
   },
+
+  async deleteConversation(conversationId: string) {
+    // FKの都合で、子テーブルから順に削除する
+    // （厳密なトランザクションはクライアントからは張れないので、順序で安全側に寄せる）
+    const { error: fbErr } = await supabase
+      .from("feedback")
+      .delete()
+      .eq("conversation_id", conversationId);
+    if (fbErr) throw fbErr;
+
+    const { error: memRefsErr } = await supabase
+      .from("memory_refs")
+      .delete()
+      .eq("conversation_id", conversationId);
+    if (memRefsErr) throw memRefsErr;
+
+    const { error: knowRefsErr } = await supabase
+      .from("knowledge_refs")
+      .delete()
+      .eq("conversation_id", conversationId);
+    if (knowRefsErr) throw knowRefsErr;
+
+    const { error: msgErr } = await supabase
+      .from("conversation_messages")
+      .delete()
+      .eq("conversation_id", conversationId);
+    if (msgErr) throw msgErr;
+
+    const { error: convErr } = await supabase.from("conversations").delete().eq("id", conversationId);
+    if (convErr) throw convErr;
+  },
 };

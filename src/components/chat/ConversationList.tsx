@@ -1,8 +1,19 @@
 import { useState } from "react";
-import { Plus, MessageSquare, Pencil, Check, X } from "lucide-react";
+import { Check, Pencil, Plus, MessageSquare, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -14,6 +25,7 @@ interface ConversationListProps {
   onSelect: (conversation: Conversation) => void;
   onCreate: () => void;
   onUpdateTitle: (id: string, title: string) => void;
+  onDelete: (id: string) => void;
   isLoading: boolean;
 }
 
@@ -23,6 +35,7 @@ export function ConversationList({
   onSelect,
   onCreate,
   onUpdateTitle,
+  onDelete,
   isLoading,
 }: ConversationListProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -119,6 +132,41 @@ export function ConversationList({
                     <span className="flex-1 truncate text-sm">
                       {conv.title || "Untitled"}
                     </span>
+
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label="Delete conversation"
+                          title="この会話を削除"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>会話を削除しますか？</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            この会話に含まれるメッセージ・参照ログ・フィードバックも削除されます。元に戻せません。
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDelete(conv.id);
+                            }}
+                          >
+                            削除
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+
                     <Button
                       size="icon"
                       variant="ghost"

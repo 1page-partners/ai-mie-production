@@ -133,6 +133,28 @@ export default function ChatPage() {
     }
   };
 
+  const deleteConversation = async (id: string) => {
+    try {
+      await ensureUser();
+      await conversationsService.deleteConversation(id);
+
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      if (selectedConversation?.id === id) {
+        setSelectedConversation(null);
+        setMessages([]);
+        setReferencedMemories([]);
+        setReferencedChunks([]);
+      }
+      toast({ title: "Deleted", description: "Conversation deleted" });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete conversation",
+        variant: "destructive",
+      });
+    }
+  };
+
   const sendMessage = async (content: string) => {
     if (!selectedConversation) {
       toast({
@@ -301,6 +323,7 @@ export default function ChatPage() {
           onSelect={setSelectedConversation}
           onCreate={createConversation}
           onUpdateTitle={updateConversationTitle}
+          onDelete={deleteConversation}
           isLoading={isLoading}
         />
         <ChatArea
