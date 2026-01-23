@@ -6,10 +6,7 @@ import { ContextPanel } from "@/components/chat/ContextPanel";
 import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/lib/services/auth";
 import { conversationsService, type Conversation, type Message } from "@/lib/services/conversations";
-import { contextService, type Memory, type KnowledgeChunk } from "@/lib/services/context";
-import { buildContextText } from "@/lib/services/contextText";
-import { difyService } from "@/lib/services/dify";
-import { refsService } from "@/lib/services/refs";
+import type { Memory, KnowledgeChunk } from "@/lib/services/context";
 import { feedbackService } from "@/lib/services/feedback";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -146,82 +143,116 @@ export default function ChatPage() {
       return;
     }
 
-    const user = await ensureUser();
-
     setIsSending(true);
     try {
-      // 1) user message を保存
-      const userMessage = await conversationsService.addMessage({
-        conversationId: selectedConversation.id,
-        userId: user.id,
-        role: "user",
+      const user = await ensureUser();
+
+      // 楽観的にユーザー発話を表示
+      const optimisticUserMsg = {
+        id: `local-user-${Date.now()}`,
+        conversation_id: selectedConversation.id,
+        user_id: user.id,
+        role: "user" as const,
         content,
-      });
-      setMessages(prev => [...prev, userMessage]);
+        created_at: new Date().toISOString(),
+        meta: {},
+      };
+      setMessages((prev) => [...prev, optimisticUserMsg as any]);
 
-      // 2) context検索（LIKE）
-      const [memories, chunks] = await Promise.all([
-        contextService.searchMemories({ queryText: content, limit: 8, projectId: selectedConversation.project_id }),
-        contextService.searchKnowledge({ queryText: content, limit: 6, projectId: selectedConversation.project_id }),
-      ]);
+      // ストリーミング用のassistantメッセージ枠
+      const streamAssistantId = `local-assistant-${Date.now()}`;
+      setMessages((prev) =>
+        [...prev, {
+          id: streamAssistantId,
+          conversation_id: selectedConversation.id,
+          user_id: user.id,
+          role: "assistant",
+          content: "",
+          created_at: new Date().toISOString(),
+          meta: { streaming: true },
+        } as any],
+      );
 
-      // 3) contextText生成
-      const contextText = buildContextText({ memories, chunks });
+      const { data: sessionRes } = await supabase.auth.getSession();
+      const token = sessionRes.session?.access_token;
+      if (!token) throw new Error("Not authenticated");
 
-      // 4) Dify呼び出し（継続IDは直近assistantメッセージmetaから拾う）
-      const lastAssistant = [...messages, userMessage].slice().reverse().find((m) => m.role === "assistant");
-      const lastDifyConversationId = (lastAssistant?.meta as any)?.difyConversationId as string | undefined;
-
-      const dify = await difyService.chat({
-        userText: content,
-        difyConversationId: lastDifyConversationId ?? null,
-        contextText,
-        userId: user.id,
-        conversationId: selectedConversation.id,
-      });
-
-      // Difyが参照IDを返せない場合は「注入した上位N件」をログにする
-      const usedMemoryIds = dify.usedMemoryIds.length ? dify.usedMemoryIds : memories.map((m) => m.id);
-      const usedChunkIds = dify.usedChunkIds.length ? dify.usedChunkIds : chunks.map((c) => c.id);
-
-      // 5) assistant message を保存（metaにdifyConversationId/参照IDs）
-      const assistantMessage = await conversationsService.addMessage({
-        conversationId: selectedConversation.id,
-        userId: user.id,
-        role: "assistant",
-        content: dify.answerText,
-        meta: {
-          difyConversationId: dify.difyConversationId,
-          memory_ids: usedMemoryIds,
-          knowledge_chunk_ids: usedChunkIds,
+      const functionUrl = "https://upscuqkxjvhzcriwljjl.supabase.co/functions/v1/openai-chat";
+      const res = await fetch(functionUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          apikey:
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVwc2N1cWt4anZoemNyaXdsampsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTYxMjksImV4cCI6MjA4NDA3MjEyOX0.jCF2wIOnjgq-xu5k-7ycRmZDnolLwDl2pgNg97Dh5bo",
         },
+        body: JSON.stringify({
+          conversationId: selectedConversation.id,
+          userText: content,
+          projectId: selectedConversation.project_id ?? null,
+          clientMessageId: null,
+        }),
       });
-      setMessages(prev => [...prev, assistantMessage]);
 
-      // 6) refs保存
-      const usedMemories = memories
-        .filter((m) => usedMemoryIds.includes(m.id))
-        .map((m) => ({ id: m.id, score: null }));
-      const usedChunks = chunks
-        .filter((c) => usedChunkIds.includes(c.id))
-        .map((c) => ({ id: c.id, score: null }));
+      if (!res.ok || !res.body) {
+        const raw = await res.text();
+        throw new Error(raw || `Edge Function failed (${res.status})`);
+      }
 
-      await Promise.all([
-        refsService.saveMemoryRefs({
-          conversationId: selectedConversation.id,
-          assistantMessageId: assistantMessage.id,
-          memories: usedMemories,
-        }),
-        refsService.saveKnowledgeRefs({
-          conversationId: selectedConversation.id,
-          assistantMessageId: assistantMessage.id,
-          chunks: usedChunks,
-        }),
-      ]);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let streamingText = "";
 
-      // 7) UI右ペイン（今回のターンのみ）
-      setReferencedMemories(memories.filter((m) => usedMemoryIds.includes(m.id)));
-      setReferencedChunks(chunks.filter((c) => usedChunkIds.includes(c.id)));
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() ?? "";
+
+        for (const part of parts) {
+          const line = part.split("\n").find((l) => l.startsWith("data:"));
+          if (!line) continue;
+          const dataStr = line.slice("data:".length).trim();
+          if (!dataStr) continue;
+          const evt = JSON.parse(dataStr);
+
+          if (evt.type === "delta" && typeof evt.delta === "string") {
+            streamingText += evt.delta;
+            setMessages((prev) =>
+              prev.map((m) => (m.id === streamAssistantId ? ({ ...m, content: streamingText } as any) : m)),
+            );
+          }
+
+          if (evt.type === "final") {
+            setReferencedMemories((evt.usedMemories ?? []) as Memory[]);
+            setReferencedChunks((evt.usedKnowledge ?? []) as KnowledgeChunk[]);
+
+            // ストリーム枠を最終確定に置換
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === streamAssistantId
+                  ? ({
+                      ...m,
+                      id: evt.assistantMessageId,
+                      content: evt.assistantText,
+                      meta: { ...(m.meta as any), streaming: false },
+                    } as any)
+                  : m,
+              ),
+            );
+
+            // DBに保存済みなので、正しい順序/IDで取り直す
+            const refreshed = await conversationsService.listMessages(selectedConversation.id);
+            setMessages(refreshed);
+          }
+
+          if (evt.type === "error") {
+            throw new Error(evt.message || "Edge Function error");
+          }
+        }
+      }
 
     } catch (error) {
       console.error("Send message error:", error);

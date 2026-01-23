@@ -2,3 +2,9 @@ project_id = "upscuqkxjvhzcriwljjl"
 
 [functions.dify-chat]
 verify_jwt = false
+
+[functions.openai-embed]
+verify_jwt = false
+
+[functions.openai-chat]
+verify_jwt = false
