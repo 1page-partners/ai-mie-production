@@ -123,8 +123,8 @@ export function ChatArea({
       <div className="flex flex-1 items-center justify-center bg-background">
         <div className="text-center text-muted-foreground">
           <MessageCircle className="mx-auto h-12 w-12 mb-4 opacity-50" />
-          <p className="text-lg font-medium">No conversation selected</p>
-          <p className="text-sm">Select or create a conversation to start chatting</p>
+          <p className="text-lg font-medium">会話未選択</p>
+          <p className="text-sm">会話を選ぶか、新規作成してください</p>
         </div>
       </div>
     );
@@ -159,8 +159,8 @@ export function ChatArea({
                     variant="ghost"
                     className="h-6 w-6 shrink-0"
                     onClick={() => hideMessage(message.id)}
-                    aria-label="Hide message"
-                    title="UI上で非表示（DBは削除しません）"
+                    aria-label="メッセージを非表示"
+                    title="UIで非表示（DBは削除しません）"
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>
@@ -191,15 +191,15 @@ export function ChatArea({
                       </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
-                          <DialogTitle>What went wrong?</DialogTitle>
+                          <DialogTitle>問題の内容</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-4">
                           <Textarea
-                            placeholder="Please describe the issue..."
+                            placeholder="内容を入力…"
                             value={feedbackComment}
                             onChange={(e) => setFeedbackComment(e.target.value)}
                           />
-                          <Button onClick={submitNegativeFeedback}>Submit Feedback</Button>
+                          <Button onClick={submitNegativeFeedback}>送信</Button>
                         </div>
                       </DialogContent>
                     </Dialog>
@@ -228,7 +228,7 @@ export function ChatArea({
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
+            placeholder="メッセージを入力…"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();

@@ -61,7 +61,7 @@ export function ConversationList({
   return (
     <div className="flex h-full w-64 flex-col border-r border-border bg-muted/30">
       <div className="flex items-center justify-between border-b border-border p-3">
-        <h2 className="text-sm font-semibold text-foreground">Conversations</h2>
+          <h2 className="text-sm font-semibold text-foreground">会話</h2>
         <Button size="icon" variant="ghost" onClick={onCreate} className="h-8 w-8">
           <Plus className="h-4 w-4" />
         </Button>
@@ -75,7 +75,7 @@ export function ConversationList({
             </div>
           ) : conversations.length === 0 ? (
             <div className="text-center py-8 text-sm text-muted-foreground">
-              No conversations yet
+              会話なし
             </div>
           ) : (
             conversations.map((conv) => (
@@ -130,7 +130,7 @@ export function ConversationList({
                 ) : (
                   <>
                     <span className="flex-1 truncate text-sm">
-                      {conv.title || "Untitled"}
+                      {conv.title || "無題"}
                     </span>
 
                     <AlertDialog>
@@ -140,8 +140,8 @@ export function ConversationList({
                           variant="ghost"
                           className="h-6 w-6 opacity-0 group-hover:opacity-100"
                           onClick={(e) => e.stopPropagation()}
-                          aria-label="Delete conversation"
-                          title="この会話を削除"
+                          aria-label="会話を削除"
+                          title="会話を削除"
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
@@ -150,7 +150,7 @@ export function ConversationList({
                         <AlertDialogHeader>
                           <AlertDialogTitle>会話を削除しますか？</AlertDialogTitle>
                           <AlertDialogDescription>
-                            この会話に含まれるメッセージ・参照ログ・フィードバックも削除されます。元に戻せません。
+                            この会話のメッセージ・参照ログ・フィードバックも削除されます。元に戻せません。
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>

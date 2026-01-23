@@ -3,10 +3,10 @@ import { MessageSquare, Brain, BookOpen, Settings, Sparkles } from "lucide-react
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { path: "/chat", label: "Chat", icon: MessageSquare },
-  { path: "/memory", label: "Memory", icon: Brain },
-  { path: "/knowledge", label: "Knowledge", icon: BookOpen },
-  { path: "/settings", label: "Settings", icon: Settings },
+  { path: "/chat", label: "チャット", icon: MessageSquare },
+  { path: "/memory", label: "メモリ", icon: Brain },
+  { path: "/knowledge", label: "ナレッジ", icon: BookOpen },
+  { path: "/settings", label: "設定", icon: Settings },
 ];
 
 export function AppSidebar() {

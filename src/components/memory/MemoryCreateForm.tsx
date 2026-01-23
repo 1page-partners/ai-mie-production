@@ -37,23 +37,23 @@ export function MemoryCreateForm({ onSubmit, onCancel }: MemoryCreateFormProps) 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="title">Title *</Label>
+        <Label htmlFor="title">タイトル *</Label>
         <Input
           id="title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Enter memory title"
+          placeholder="タイトルを入力"
           required
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="content">Content *</Label>
+        <Label htmlFor="content">内容 *</Label>
         <Textarea
           id="content"
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="Enter memory content"
+          placeholder="内容を入力"
           rows={4}
           required
         />
@@ -61,23 +61,23 @@ export function MemoryCreateForm({ onSubmit, onCancel }: MemoryCreateFormProps) 
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="type">Type</Label>
+          <Label htmlFor="type">種別</Label>
           <Select value={type} onValueChange={(v) => setType(v as MemoryType)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="fact">Fact</SelectItem>
-              <SelectItem value="preference">Preference</SelectItem>
-              <SelectItem value="procedure">Procedure</SelectItem>
-              <SelectItem value="goal">Goal</SelectItem>
-              <SelectItem value="context">Context</SelectItem>
+              <SelectItem value="fact">事実</SelectItem>
+              <SelectItem value="preference">嗜好</SelectItem>
+              <SelectItem value="procedure">手順</SelectItem>
+              <SelectItem value="goal">目標</SelectItem>
+              <SelectItem value="context">文脈</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className="space-y-2">
-          <Label>Confidence: {Math.round(confidence * 100)}%</Label>
+          <Label>確度: {Math.round(confidence * 100)}%</Label>
           <Slider
             value={[confidence]}
             onValueChange={([v]) => setConfidence(v)}
@@ -91,10 +91,10 @@ export function MemoryCreateForm({ onSubmit, onCancel }: MemoryCreateFormProps) 
 
       <div className="flex justify-end gap-2 pt-4">
         <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
+          キャンセル
         </Button>
         <Button type="submit" disabled={!title.trim() || !content.trim()}>
-          Create Memory
+          作成
         </Button>
       </div>
     </form>

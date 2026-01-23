@@ -20,6 +20,19 @@ const statusColors = {
   error: "bg-red-100 text-red-800",
 };
 
+const statusLabels: Record<keyof typeof statusColors, string> = {
+  pending: "待機",
+  processing: "処理中",
+  ready: "準備完了",
+  error: "エラー",
+};
+
+const sourceTypeLabels: Record<string, string> = {
+  pdf: "PDF",
+  gdocs: "Google Docs",
+  notion: "Notion",
+};
+
 export default function KnowledgePage() {
   const { toast } = useToast();
   const [sources, setSources] = useState<KnowledgeSource[]>([]);
@@ -42,7 +55,7 @@ export default function KnowledgePage() {
       if (error) throw error;
       setSources(data || []);
     } catch (error) {
-      toast({ title: "Error", description: "Failed to load sources", variant: "destructive" });
+      toast({ title: "エラー", description: "ソースの取得に失敗", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -60,7 +73,7 @@ export default function KnowledgePage() {
       if (error) throw error;
       setSearchResults(data || []);
     } catch (error) {
-      toast({ title: "Error", description: "Search failed", variant: "destructive" });
+      toast({ title: "エラー", description: "検索に失敗", variant: "destructive" });
     } finally {
       setIsSearching(false);
     }
@@ -71,22 +84,22 @@ export default function KnowledgePage() {
       <div className="flex h-full">
         <div className="flex-1 flex flex-col p-6 space-y-6 overflow-auto">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-foreground">Knowledge Base</h1>
+            <h1 className="text-2xl font-bold text-foreground">ナレッジ</h1>
             <Button disabled>
               <Upload className="mr-2 h-4 w-4" />
-              Upload PDF (Coming Soon)
+              PDFアップロード（準備中）
             </Button>
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Sources ({sources.length})</CardTitle>
+              <CardTitle className="text-lg">ソース（{sources.length}）</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
               ) : sources.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">No knowledge sources yet</p>
+                <p className="text-muted-foreground text-center py-8">ソースなし</p>
               ) : (
                 <div className="space-y-2">
                   {sources.map((source) => (
@@ -95,10 +108,12 @@ export default function KnowledgePage() {
                         <FileText className="h-5 w-5 text-muted-foreground" />
                         <div>
                           <p className="font-medium text-foreground">{source.name}</p>
-                          <p className="text-xs text-muted-foreground">{source.type}</p>
+                           <p className="text-xs text-muted-foreground">{sourceTypeLabels[source.type] ?? source.type}</p>
                         </div>
                       </div>
-                      <Badge className={statusColors[source.status as keyof typeof statusColors]}>{source.status}</Badge>
+                       <Badge className={statusColors[source.status as keyof typeof statusColors]}>
+                         {statusLabels[source.status as keyof typeof statusColors]}
+                       </Badge>
                     </div>
                   ))}
                 </div>
@@ -108,24 +123,24 @@ export default function KnowledgePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Search Test</CardTitle>
+              <CardTitle className="text-lg">検索</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
-                <Input placeholder="Search knowledge..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && searchKnowledge()} />
+                <Input placeholder="検索…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && searchKnowledge()} />
                 <Button onClick={searchKnowledge} disabled={isSearching}>
                   {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                 </Button>
               </div>
               <ScrollArea className="h-64">
                 {searchResults.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">No results</p>
+                  <p className="text-muted-foreground text-center py-8">結果なし</p>
                 ) : (
                   <div className="space-y-2">
                     {searchResults.map((chunk) => (
                       <div key={chunk.id} className="p-3 rounded-lg border border-border">
                         <p className="text-sm text-foreground line-clamp-3">{chunk.content}</p>
-                        <p className="text-xs text-muted-foreground mt-1">Chunk #{chunk.chunk_index}</p>
+                        <p className="text-xs text-muted-foreground mt-1">チャンク #{chunk.chunk_index}</p>
                       </div>
                     ))}
                   </div>

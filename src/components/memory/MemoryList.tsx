@@ -8,6 +8,14 @@ import type { Tables } from "@/integrations/supabase/types";
 type Memory = Tables<"memories">;
 type MemoryType = "fact" | "preference" | "procedure" | "goal" | "context";
 
+const typeLabels: Record<MemoryType, string> = {
+  fact: "事実",
+  preference: "嗜好",
+  procedure: "手順",
+  goal: "目標",
+  context: "文脈",
+};
+
 interface MemoryListProps {
   memories: Memory[];
   selectedId?: string;
@@ -48,15 +56,15 @@ export function MemoryList({
         <div className="flex gap-2">
           <Select value={typeFilter} onValueChange={(v) => onTypeFilterChange(v as MemoryType | "all")}>
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Type" />
+              <SelectValue placeholder="種別" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              <SelectItem value="fact">Fact</SelectItem>
-              <SelectItem value="preference">Preference</SelectItem>
-              <SelectItem value="procedure">Procedure</SelectItem>
-              <SelectItem value="goal">Goal</SelectItem>
-              <SelectItem value="context">Context</SelectItem>
+              <SelectItem value="all">全て</SelectItem>
+              <SelectItem value="fact">事実</SelectItem>
+              <SelectItem value="preference">嗜好</SelectItem>
+              <SelectItem value="procedure">手順</SelectItem>
+              <SelectItem value="goal">目標</SelectItem>
+              <SelectItem value="context">文脈</SelectItem>
             </SelectContent>
           </Select>
 
@@ -65,12 +73,12 @@ export function MemoryList({
             onValueChange={(v) => onPinnedFilterChange(v === "all" ? null : v === "pinned")}
           >
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Pinned" />
+              <SelectValue placeholder="ピン" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="pinned">Pinned</SelectItem>
-              <SelectItem value="unpinned">Unpinned</SelectItem>
+              <SelectItem value="all">全て</SelectItem>
+              <SelectItem value="pinned">ピンあり</SelectItem>
+              <SelectItem value="unpinned">ピンなし</SelectItem>
             </SelectContent>
           </Select>
 
@@ -79,12 +87,12 @@ export function MemoryList({
             onValueChange={(v) => onActiveFilterChange(v === "all" ? null : v === "active")}
           >
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Status" />
+              <SelectValue placeholder="状態" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
+              <SelectItem value="all">全て</SelectItem>
+              <SelectItem value="active">有効</SelectItem>
+              <SelectItem value="inactive">無効</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -98,7 +106,7 @@ export function MemoryList({
             </div>
           ) : memories.length === 0 ? (
             <div className="text-center py-8 text-sm text-muted-foreground">
-              No memories found
+              該当なし
             </div>
           ) : (
             memories.map((memory) => (
@@ -128,14 +136,14 @@ export function MemoryList({
                     </p>
                     <div className="flex items-center gap-2 mt-2">
                       <Badge className={cn("text-xs", typeColors[memory.type as MemoryType])}>
-                        {memory.type}
+                        {typeLabels[memory.type as MemoryType]}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         {Math.round(memory.confidence * 100)}%
                       </span>
                       {!memory.is_active && (
                         <Badge variant="outline" className="text-xs text-muted-foreground">
-                          Inactive
+                          無効
                         </Badge>
                       )}
                     </div>
