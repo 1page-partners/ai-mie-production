@@ -32,7 +32,7 @@ export default function ChatPage() {
 
     const { data, error } = await supabase.auth.signInAnonymously();
     if (error) throw error;
-    if (!data.user) throw new Error("Anonymous sign-in failed");
+    if (!data.user) throw new Error("匿名ログインに失敗");
     return data.user;
   };
 
@@ -71,8 +71,8 @@ export default function ChatPage() {
       setConversations(data);
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to load conversations",
+        title: "エラー",
+        description: "会話の取得に失敗",
         variant: "destructive",
       });
     } finally {
@@ -86,8 +86,8 @@ export default function ChatPage() {
       setMessages(data);
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to load messages",
+        title: "エラー",
+        description: "メッセージの取得に失敗",
         variant: "destructive",
       });
     }
@@ -99,17 +99,17 @@ export default function ChatPage() {
 
       const data = await conversationsService.createConversation({
         userId: user.id,
-        title: "New Conversation",
+        title: "新規会話",
       });
       setConversations(prev => [data, ...prev]);
       setSelectedConversation(data);
     } catch (error) {
       toast({
-        title: "Error",
+        title: "エラー",
         description:
           error instanceof Error
             ? error.message
-            : "Failed to create conversation",
+            : "会話の作成に失敗",
         variant: "destructive",
       });
     }
@@ -126,8 +126,8 @@ export default function ChatPage() {
       }
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to update conversation title",
+        title: "エラー",
+        description: "タイトルの更新に失敗",
         variant: "destructive",
       });
     }
@@ -145,11 +145,11 @@ export default function ChatPage() {
         setReferencedMemories([]);
         setReferencedChunks([]);
       }
-      toast({ title: "Deleted", description: "Conversation deleted" });
+      toast({ title: "削除", description: "会話を削除しました" });
     } catch (error) {
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete conversation",
+        title: "エラー",
+        description: error instanceof Error ? error.message : "会話の削除に失敗",
         variant: "destructive",
       });
     }
@@ -158,8 +158,8 @@ export default function ChatPage() {
   const sendMessage = async (content: string) => {
     if (!selectedConversation) {
       toast({
-        title: "Error",
-        description: "Please select or create a conversation first",
+        title: "エラー",
+        description: "会話を選ぶか、新規作成してください",
         variant: "destructive",
       });
       return;
@@ -197,7 +197,7 @@ export default function ChatPage() {
 
       const { data: sessionRes } = await supabase.auth.getSession();
       const token = sessionRes.session?.access_token;
-      if (!token) throw new Error("Not authenticated");
+      if (!token) throw new Error("未ログイン");
 
       const functionUrl = "https://upscuqkxjvhzcriwljjl.supabase.co/functions/v1/openai-chat";
       const res = await fetch(functionUrl, {
@@ -218,7 +218,7 @@ export default function ChatPage() {
 
       if (!res.ok || !res.body) {
         const raw = await res.text();
-        throw new Error(raw || `Edge Function failed (${res.status})`);
+        throw new Error(raw || `処理に失敗 (${res.status})`);
       }
 
       const reader = res.body.getReader();
@@ -271,7 +271,7 @@ export default function ChatPage() {
           }
 
           if (evt.type === "error") {
-            throw new Error(evt.message || "Edge Function error");
+            throw new Error(evt.message || "処理エラー");
           }
         }
       }
@@ -279,8 +279,8 @@ export default function ChatPage() {
     } catch (error) {
       console.error("Send message error:", error);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to send message",
+        title: "エラー",
+        description: error instanceof Error ? error.message : "送信に失敗",
         variant: "destructive",
       });
     } finally {
@@ -302,13 +302,13 @@ export default function ChatPage() {
         comment,
       });
       toast({
-        title: "Feedback submitted",
-        description: "Thank you for your feedback!",
+        title: "フィードバック送信",
+        description: "ありがとうございます",
       });
     } catch (error) {
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to submit feedback",
+        title: "エラー",
+        description: error instanceof Error ? error.message : "フィードバック送信に失敗",
         variant: "destructive",
       });
     }

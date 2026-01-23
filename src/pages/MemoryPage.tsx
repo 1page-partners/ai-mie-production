@@ -56,8 +56,8 @@ export default function MemoryPage() {
       setMemories(data || []);
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to load memories",
+        title: "エラー",
+        description: "メモリの取得に失敗",
         variant: "destructive",
       });
     } finally {
@@ -69,8 +69,8 @@ export default function MemoryPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       toast({
-        title: "Error",
-        description: "Please sign in to create memories",
+        title: "エラー",
+        description: "ログインしてください",
         variant: "destructive",
       });
       return;
@@ -87,13 +87,13 @@ export default function MemoryPage() {
       setMemories(prev => [data, ...prev]);
       setIsCreateOpen(false);
       toast({
-        title: "Memory created",
-        description: "Your memory has been saved",
+        title: "作成完了",
+        description: "メモリを保存しました",
       });
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to create memory",
+        title: "エラー",
+        description: "作成に失敗",
         variant: "destructive",
       });
     }
@@ -114,13 +114,13 @@ export default function MemoryPage() {
         setSelectedMemory(data);
       }
       toast({
-        title: "Memory updated",
-        description: "Your changes have been saved",
+        title: "更新完了",
+        description: "変更を保存しました",
       });
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to update memory",
+        title: "エラー",
+        description: "更新に失敗",
         variant: "destructive",
       });
     }
@@ -132,17 +132,17 @@ export default function MemoryPage() {
         {/* Left Panel - List */}
         <div className="flex h-full w-96 flex-col border-r border-border">
           <div className="flex items-center justify-between border-b border-border p-4">
-            <h1 className="text-lg font-semibold text-foreground">Memories</h1>
+            <h1 className="text-lg font-semibold text-foreground">メモリ</h1>
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
               <DialogTrigger asChild>
                 <Button size="sm">
                   <Plus className="mr-2 h-4 w-4" />
-                  New Memory
+                  新規
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-lg">
                 <DialogHeader>
-                  <DialogTitle>Create Memory</DialogTitle>
+                  <DialogTitle>メモリ作成</DialogTitle>
                 </DialogHeader>
                 <MemoryCreateForm onSubmit={createMemory} onCancel={() => setIsCreateOpen(false)} />
               </DialogContent>
@@ -172,7 +172,7 @@ export default function MemoryPage() {
             />
           ) : (
             <div className="flex h-full items-center justify-center">
-              <p className="text-muted-foreground">Select a memory to view details</p>
+              <p className="text-muted-foreground">メモリを選択</p>
             </div>
           )}
         </div>

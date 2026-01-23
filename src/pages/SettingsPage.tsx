@@ -11,56 +11,56 @@ export default function SettingsPage() {
   return (
     <AppLayout>
       <div className="flex-1 p-6 space-y-6 overflow-auto">
-        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+        <h1 className="text-2xl font-bold text-foreground">設定</h1>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Dify Configuration</CardTitle>
+            <CardTitle className="text-lg">Dify設定</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Endpoint</span>
-              <code className="text-xs bg-muted px-2 py-1 rounded">Configured via environment</code>
+              <span className="text-sm text-muted-foreground">エンドポイント</span>
+              <code className="text-xs bg-muted px-2 py-1 rounded">環境変数で設定</code>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">API Key</span>
-              <Badge variant="outline">Not configured</Badge>
+              <span className="text-sm text-muted-foreground">APIキー</span>
+              <Badge variant="outline">未設定</Badge>
             </div>
-            <p className="text-xs text-muted-foreground">Dify integration will be available after API key is configured.</p>
+            <p className="text-xs text-muted-foreground">APIキー設定後に利用可能</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Supabase Connection</CardTitle>
+            <CardTitle className="text-lg">Supabase接続</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Status</span>
+              <span className="text-sm text-muted-foreground">状態</span>
               <div className="flex items-center gap-2">
                 {isAuthenticated ? (
                   <>
                     <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span className="text-sm text-green-600">Connected</span>
+                    <span className="text-sm text-green-600">接続中</span>
                   </>
                 ) : (
                   <>
                     <XCircle className="h-4 w-4 text-red-500" />
-                    <span className="text-sm text-red-600">Not authenticated</span>
+                    <span className="text-sm text-red-600">未ログイン</span>
                   </>
                 )}
               </div>
             </div>
             {user && (
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">User</span>
+                <span className="text-sm text-muted-foreground">ユーザー</span>
                 <span className="text-sm text-foreground">{user.email}</span>
               </div>
             )}
             {isAuthenticated && (
               <Button variant="outline" onClick={signOut} className="w-full">
                 <LogOut className="mr-2 h-4 w-4" />
-                Sign Out
+                ログアウト
               </Button>
             )}
           </CardContent>

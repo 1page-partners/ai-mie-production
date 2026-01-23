@@ -73,7 +73,7 @@ export function MemoryDetail({ memory, onUpdate }: MemoryDetailProps) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-border p-4">
-        <h2 className="text-lg font-semibold text-foreground">Memory Details</h2>
+        <h2 className="text-lg font-semibold text-foreground">メモリ詳細</h2>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -83,12 +83,12 @@ export function MemoryDetail({ memory, onUpdate }: MemoryDetailProps) {
             {pinned ? (
               <>
                 <PinOff className="mr-2 h-4 w-4" />
-                Unpin
+                ピン解除
               </>
             ) : (
               <>
                 <Pin className="mr-2 h-4 w-4" />
-                Pin
+                ピン
               </>
             )}
           </Button>
@@ -98,14 +98,14 @@ export function MemoryDetail({ memory, onUpdate }: MemoryDetailProps) {
             disabled={!hasChanges}
           >
             <Save className="mr-2 h-4 w-4" />
-            Save
+            保存
           </Button>
         </div>
       </div>
 
       <div className="flex-1 overflow-auto p-6 space-y-6">
         <div className="space-y-2">
-          <Label htmlFor="title">Title</Label>
+          <Label htmlFor="title">タイトル</Label>
           <Input
             id="title"
             value={title}
@@ -114,7 +114,7 @@ export function MemoryDetail({ memory, onUpdate }: MemoryDetailProps) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="content">Content</Label>
+          <Label htmlFor="content">内容</Label>
           <Textarea
             id="content"
             value={content}
@@ -125,23 +125,23 @@ export function MemoryDetail({ memory, onUpdate }: MemoryDetailProps) {
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="type">Type</Label>
+            <Label htmlFor="type">種別</Label>
             <Select value={type} onValueChange={(v) => setType(v as MemoryType)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="fact">Fact</SelectItem>
-                <SelectItem value="preference">Preference</SelectItem>
-                <SelectItem value="procedure">Procedure</SelectItem>
-                <SelectItem value="goal">Goal</SelectItem>
-                <SelectItem value="context">Context</SelectItem>
+                <SelectItem value="fact">事実</SelectItem>
+                <SelectItem value="preference">嗜好</SelectItem>
+                <SelectItem value="procedure">手順</SelectItem>
+                <SelectItem value="goal">目標</SelectItem>
+                <SelectItem value="context">文脈</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
-            <Label>Confidence: {Math.round(confidence * 100)}%</Label>
+            <Label>確度: {Math.round(confidence * 100)}%</Label>
             <Slider
               value={[confidence]}
               onValueChange={([v]) => setConfidence(v)}
@@ -155,17 +155,17 @@ export function MemoryDetail({ memory, onUpdate }: MemoryDetailProps) {
 
         <div className="flex items-center justify-between rounded-lg border border-border p-4">
           <div>
-            <Label>Active Status</Label>
+            <Label>有効</Label>
             <p className="text-sm text-muted-foreground">
-              Inactive memories won't be used for context
+              無効のメモリは文脈に使われません
             </p>
           </div>
           <Switch checked={isActive} onCheckedChange={toggleActive} />
         </div>
 
         <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-          <p>Created: {new Date(memory.created_at).toLocaleString()}</p>
-          <p>Updated: {new Date(memory.updated_at).toLocaleString()}</p>
+          <p>作成: {new Date(memory.created_at).toLocaleString()}</p>
+          <p>更新: {new Date(memory.updated_at).toLocaleString()}</p>
           <p className="text-xs mt-2 font-mono">ID: {memory.id}</p>
         </div>
       </div>
