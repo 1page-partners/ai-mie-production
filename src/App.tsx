@@ -9,6 +9,7 @@ import ChatPage from "./pages/ChatPage";
 import MemoryPage from "./pages/MemoryPage";
 import KnowledgePage from "./pages/KnowledgePage";
 import SettingsPage from "./pages/SettingsPage";
+import AdminPage from "./pages/AdminPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/memory" element={<MemoryPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
