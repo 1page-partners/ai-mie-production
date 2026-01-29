@@ -49,6 +49,10 @@ memories               # 長期記憶
 ├── confidence (float, default 0.7)
 ├── pinned (boolean, default false)
 ├── is_active (boolean, default true)
+├── status (text: 'candidate'|'approved'|'rejected') ← 2段階管理 ✅
+├── reviewed_at (timestamptz, nullable) ← 精査日時
+├── rejected_reason (text, nullable) ← 却下理由
+├── source_message_id (uuid, nullable) ← 自動抽出元
 └── created_at, updated_at (timestamptz)
 
 knowledge_sources      # ナレッジソース（親）
@@ -129,6 +133,9 @@ projects               # プロジェクト（スコープ分離用）
 | **チャット** | SSEストリーミング対応のAIチャット |
 | **RAG** | Memory/Knowledgeをコンテキストとして注入、LIKEフォールバック対応 |
 | **メモリ管理** | CRUD、タイプ別分類、ピン留め、信頼度設定、Embedding自動生成 |
+| **メモリ自動抽出** | チャット毎に最大3件の候補を自動抽出、重複判定付き ✅ |
+| **2段階メモリ管理** | 候補→承認/却下のワークフロー、RAGはapprovedのみ対象 ✅ |
+| **候補精査UI** | 承認/編集して承認/却下/一括却下（低信頼度）✅ |
 | **ナレッジ管理** | PDFアップロード、ソース登録、ステータス表示、再同期 |
 | **会話アーカイブ** | 論理削除（archived_at）、通常/アーカイブ切替、復元 |
 | **Embedding自動生成** | Memory/Knowledge作成時に自動生成、欠損一括補完 |
@@ -156,8 +163,9 @@ src/
 │   │   ├── AppLayout.tsx
 │   │   └── AppSidebar.tsx
 │   ├── memory/         # メモリ管理UI
-│   │   ├── MemoryList.tsx
-│   │   ├── MemoryDetail.tsx      # Embedding再生成ボタン
+│   │   ├── MemoryList.tsx           # ステータスタブ対応
+│   │   ├── MemoryDetail.tsx         # Embedding再生成ボタン
+│   │   ├── MemoryCandidateActions.tsx  # 候補精査UI ✅
 │   │   └── MemoryCreateForm.tsx
 │   └── ui/             # shadcn/ui
 ├── hooks/
@@ -195,7 +203,7 @@ supabase/
 
 | 関数名 | 用途 |
 |--------|------|
-| `openai-chat` | SSEチャット応答、RAG検索（Vector+LIKE fallback）、参照ログ保存 |
+| `openai-chat` | SSEチャット応答、RAG検索、メモリ自動抽出(最大3件/ターン)、参照ログ保存 |
 | `openai-embed` | Embedding生成 (text-embedding-3-small, 1536次元) |
 | `pdf-ingest` | PDFテキスト抽出→チャンク化→Embedding→upsert |
 | `gdocs-sync` | Google Docsからテキスト取得→チャンク化→Embedding |
@@ -237,12 +245,14 @@ supabase/
 2. OpenAI Embedding APIでクエリベクトル生成
 3. match_memories / match_knowledge でRAG検索
    - 失敗時はLIKEフォールバック（title + content検索）
+   - approvedメモリのみ対象
 4. [CONTEXT]プロンプト構築（Memory 8件、Knowledge 6件上限）
 5. openai-chat Edge Function呼び出し（SSE）
 6. ストリーミング表示
 7. 応答末尾のJSON抽出（失敗時は注入IDを使用）
 8. memory_refs / knowledge_refs 保存（重複無視）
 9. 右ペインに参照表示
+10. メモリ候補自動抽出（非同期、最大3件）→ status='candidate' で保存
 ```
 
 ## 認証状態

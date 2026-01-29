@@ -29,6 +29,14 @@ type KnowledgeMatchRow = {
   score: number;
 };
 
+type MemoryCandidate = {
+  type: "fact" | "preference" | "procedure" | "goal" | "context";
+  title: string;
+  content: string;
+  confidence: number;
+  dedupe_key: string;
+};
+
 type SSEEvent =
   | { type: "delta"; delta: string }
   | {
@@ -65,7 +73,6 @@ function extractTrailingRefJson(text: string): {
   chunkIds: string[];
 } {
   const trimmed = text.trim();
-  // 末尾にある {"memory_ids":[],"knowledge_chunk_ids":[]} を抽出
   const m = trimmed.match(/\{\s*"memory_ids"\s*:\s*\[[^\]]*\]\s*,\s*"knowledge_chunk_ids"\s*:\s*\[[^\]]*\]\s*\}\s*$/);
   if (!m) return { cleaned: trimmed, memoryIds: [], chunkIds: [] };
   try {
@@ -98,7 +105,6 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
 }
 
 function embeddingToPgVectorString(embedding: number[]) {
-  // PostgRESTがvectorにキャストできる形式: "[0.1,0.2,...]"
   return `[${embedding.join(",")}]`;
 }
 
@@ -120,8 +126,7 @@ function buildSystemPrompt(input: {
     )
     .join("\n");
 
-  return `[
-CONTEXT]
+  return `[CONTEXT]
 
 ## MEMORY（長期記憶：優先）
 ${memoryLines || "- (none)"}
@@ -135,6 +140,192 @@ ${knowledgeLines || "- (none)"}
 - 回答末尾に参照IDをJSONで必ず付与する：\n  {"memory_ids":[...],"knowledge_chunk_ids":[...]}
 
 [/CONTEXT]`;
+}
+
+const MEMORY_EXTRACTION_PROMPT = `あなたはメモリ抽出アシスタントです。ユーザーとアシスタントの会話から、長期的に有用な情報を抽出してください。
+
+## 抽出ルール
+- 断定的で長期的に有効な情報のみ抽出
+- 「方針/手順/業務ルール/永続的な嗜好/プロジェクト状態/重要な事実」を優先
+- 感情/一時的な雑談/推測/短期のToDoは抽出しない
+- 曖昧な情報や一過性の情報は抽出しない
+- 最大3件まで
+
+## 出力形式（JSON配列のみ、説明不要）
+[
+  {
+    "type": "fact|preference|procedure|goal|context",
+    "title": "短いタイトル（20文字以内）",
+    "content": "RAGで使える粒度の本文（100文字以内）",
+    "confidence": 0.0-1.0,
+    "dedupe_key": "タイトルを正規化したキー（小文字、スペース除去）"
+  }
+]
+
+## type の選び方
+- fact: 確定した事実（会社情報、人物情報、数値など）
+- preference: 嗜好や好み（コーディングスタイル、ツール選択など）
+- procedure: 手順やルール（ワークフロー、承認フローなど）
+- goal: 目標や方針（プロジェクト目標、KPIなど）
+- context: 文脈情報（現在の状況、進行中の作業など）
+
+抽出対象がない場合は空配列 [] を返してください。`;
+
+async function generateEmbedding(
+  text: string,
+  apiKey: string,
+  model: string
+): Promise<number[] | null> {
+  try {
+    const res = await fetchWithTimeout(
+      "https://api.openai.com/v1/embeddings",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ model, input: text }),
+      },
+      30_000
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.data?.[0]?.embedding ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function extractMemoryCandidates(
+  userText: string,
+  assistantText: string,
+  apiKey: string,
+  model: string
+): Promise<MemoryCandidate[]> {
+  try {
+    const res = await fetchWithTimeout(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: MEMORY_EXTRACTION_PROMPT },
+            {
+              role: "user",
+              content: `## 会話内容
+
+ユーザー: ${userText}
+
+アシスタント: ${assistantText}
+
+上記から長期的に有用なメモリを抽出してください。`,
+            },
+          ],
+          temperature: 0.3,
+          max_tokens: 1000,
+        }),
+      },
+      30_000
+    );
+
+    if (!res.ok) {
+      console.error("Memory extraction API failed:", res.status);
+      return [];
+    }
+
+    const json = await res.json();
+    const content = json?.choices?.[0]?.message?.content ?? "";
+    
+    // Extract JSON array from response
+    const match = content.match(/\[[\s\S]*\]/);
+    if (!match) return [];
+
+    const candidates = JSON.parse(match[0]) as MemoryCandidate[];
+    
+    // Validate and filter
+    return candidates
+      .filter(
+        (c) =>
+          c.type &&
+          ["fact", "preference", "procedure", "goal", "context"].includes(c.type) &&
+          c.title &&
+          c.content &&
+          typeof c.confidence === "number"
+      )
+      .slice(0, 3);
+  } catch (e) {
+    console.error("Memory extraction failed:", e);
+    return [];
+  }
+}
+
+async function checkDuplicateMemory(
+  sb: any,
+  userId: string,
+  candidate: MemoryCandidate
+): Promise<boolean> {
+  // Check by dedupe_key (normalized title)
+  const { data: existing } = await sb
+    .from("memories")
+    .select("id")
+    .eq("user_id", userId)
+    .neq("status", "rejected")
+    .or(`title.ilike.%${candidate.title}%,content.ilike.%${candidate.content.slice(0, 50)}%`)
+    .limit(1);
+
+  return (existing?.length ?? 0) > 0;
+}
+
+async function saveMemoryCandidates(
+  sb: any,
+  userId: string,
+  candidates: MemoryCandidate[],
+  sourceMessageId: string,
+  apiKey: string,
+  embedModel: string
+): Promise<void> {
+  for (const candidate of candidates) {
+    try {
+      // Check for duplicates
+      const isDuplicate = await checkDuplicateMemory(sb, userId, candidate);
+      if (isDuplicate) {
+        console.log("Skipping duplicate memory:", candidate.title);
+        continue;
+      }
+
+      // Generate embedding
+      const text = `${candidate.title}\n\n${candidate.content}`;
+      const embedding = await generateEmbedding(text, apiKey, embedModel);
+
+      // Insert as candidate using raw SQL to avoid type issues
+      const insertPayload = {
+        user_id: userId,
+        type: candidate.type,
+        title: candidate.title,
+        content: candidate.content,
+        confidence: candidate.confidence,
+        status: "candidate",
+        source_message_id: sourceMessageId,
+        embedding: embedding ? embeddingToPgVectorString(embedding) : null,
+        is_active: true,
+        pinned: false,
+      };
+
+      const { error } = await sb.from("memories").insert(insertPayload);
+
+      if (error) {
+        console.error("Failed to save memory candidate:", error);
+      }
+    } catch (e) {
+      console.error("Error saving memory candidate:", e);
+    }
+  }
 }
 
 serve(async (req) => {
@@ -250,8 +441,7 @@ serve(async (req) => {
         }
         const embeddingStr = embeddingToPgVectorString(embedding);
 
-        // 3) Supabaseからコンテキスト取得（毎ターン必ず）
-        // まずRPC（vector検索）を試し、失敗したらLIKEフォールバック
+        // 3) Supabaseからコンテキスト取得（approved memories only）
         let memoryMatches: Array<MemoryRow & { score: number | null }> = [];
         let knowledgeMatches: Array<{ id: string; source_name: string; chunk_index: number; content: string; meta: unknown; score: number | null }> = [];
 
@@ -264,22 +454,26 @@ serve(async (req) => {
         });
 
         if (!memRpc.error && Array.isArray(memRpc.data)) {
-          memoryMatches = memRpc.data.map((r: any) => ({
-            id: String(r.id),
-            type: String(r.type),
-            title: String(r.title ?? ""),
-            content: String(r.content ?? ""),
-            confidence: Number(r.confidence ?? 0),
-            pinned: Boolean(r.pinned),
-            updated_at: String(r.updated_at ?? ""),
-            score: typeof r.score === "number" ? r.score : null,
-          }));
+          memoryMatches = memRpc.data.map((r: unknown) => {
+            const row = r as Record<string, unknown>;
+            return {
+              id: String(row.id),
+              type: String(row.type),
+              title: String(row.title ?? ""),
+              content: String(row.content ?? ""),
+              confidence: Number(row.confidence ?? 0),
+              pinned: Boolean(row.pinned),
+              updated_at: String(row.updated_at ?? ""),
+              score: typeof row.score === "number" ? row.score : null,
+            };
+          });
         } else {
-          // LIKE fallback
+          // LIKE fallback - only approved
           let q = supabase
             .from("memories")
             .select("id,type,title,content,confidence,pinned,updated_at")
             .eq("is_active", true)
+            .eq("status", "approved")
             .ilike("content", `%${userText}%`)
             .order("pinned", { ascending: false })
             .order("confidence", { ascending: false })
@@ -288,7 +482,10 @@ serve(async (req) => {
           if (projectId) q = q.eq("project_id", projectId);
           const { data, error } = await q;
           if (error) throw error;
-          memoryMatches = (data ?? []).map((r: any) => ({ ...r, score: null }));
+          memoryMatches = (data ?? []).map((r: unknown) => {
+            const row = r as Record<string, unknown>;
+            return { ...row, score: null } as MemoryRow & { score: number | null };
+          });
         }
 
         const knowRpc = await supabase.rpc("match_knowledge", {
@@ -300,7 +497,6 @@ serve(async (req) => {
 
         if (!knowRpc.error && Array.isArray(knowRpc.data)) {
           const ids = knowRpc.data.map((r: KnowledgeMatchRow) => r.chunk_id);
-          // chunk_index/meta等はknowledge_chunksから取る
           const { data: chunks, error: chunksErr } = await supabase
             .from("knowledge_chunks")
             .select("id,chunk_index,content,meta, knowledge_sources!inner(name,status,project_id)")
@@ -309,17 +505,22 @@ serve(async (req) => {
           if (chunksErr) throw chunksErr;
 
           const scoreMap = new Map<string, number>();
-          for (const r of knowRpc.data as any[]) {
-            scoreMap.set(String(r.chunk_id), typeof r.score === "number" ? r.score : 0);
+          for (const r of knowRpc.data as unknown[]) {
+            const row = r as Record<string, unknown>;
+            scoreMap.set(String(row.chunk_id), typeof row.score === "number" ? row.score : 0);
           }
-          knowledgeMatches = (chunks ?? []).map((c: any) => ({
-            id: String(c.id),
-            source_name: String(c.knowledge_sources?.name ?? "Unknown Source"),
-            chunk_index: Number(c.chunk_index ?? 0),
-            content: String(c.content ?? ""),
-            meta: c.meta ?? {},
-            score: scoreMap.has(String(c.id)) ? scoreMap.get(String(c.id))! : null,
-          }));
+          knowledgeMatches = (chunks ?? []).map((c: unknown) => {
+            const chunk = c as Record<string, unknown>;
+            const sources = chunk.knowledge_sources as Record<string, unknown> | undefined;
+            return {
+              id: String(chunk.id),
+              source_name: String(sources?.name ?? "Unknown Source"),
+              chunk_index: Number(chunk.chunk_index ?? 0),
+              content: String(chunk.content ?? ""),
+              meta: chunk.meta ?? {},
+              score: scoreMap.has(String(chunk.id)) ? scoreMap.get(String(chunk.id))! : null,
+            };
+          });
         } else {
           // LIKE fallback
           let q = supabase
@@ -331,14 +532,18 @@ serve(async (req) => {
           if (projectId) q = q.eq("knowledge_sources.project_id", projectId);
           const { data, error } = await q;
           if (error) throw error;
-          knowledgeMatches = (data ?? []).map((c: any) => ({
-            id: String(c.id),
-            source_name: String(c.knowledge_sources?.name ?? "Unknown Source"),
-            chunk_index: Number(c.chunk_index ?? 0),
-            content: String(c.content ?? ""),
-            meta: c.meta ?? {},
-            score: null,
-          }));
+          knowledgeMatches = (data ?? []).map((c: unknown) => {
+            const chunk = c as Record<string, unknown>;
+            const sources = chunk.knowledge_sources as Record<string, unknown> | undefined;
+            return {
+              id: String(chunk.id),
+              source_name: String(sources?.name ?? "Unknown Source"),
+              chunk_index: Number(chunk.chunk_index ?? 0),
+              content: String(chunk.content ?? ""),
+              meta: chunk.meta ?? {},
+              score: null,
+            };
+          });
         }
 
         // 4) history（直近N件）
@@ -352,7 +557,10 @@ serve(async (req) => {
         const history = (historyRows ?? [])
           .slice()
           .reverse()
-          .map((m: any) => ({ role: m.role, content: m.content }));
+          .map((m: unknown) => {
+            const msg = m as Record<string, unknown>;
+            return { role: msg.role as string, content: msg.content as string };
+          });
 
         // 5) OpenAIに送るmessages構築
         const system = buildSystemPrompt({ memories: memoryMatches, knowledge: knowledgeMatches });
@@ -406,17 +614,20 @@ serve(async (req) => {
             if (!data) continue;
             if (data === "[DONE]") continue;
 
-            let parsed: any;
+            let parsed: unknown;
             try {
               parsed = JSON.parse(data);
             } catch {
               continue;
             }
 
-            const delta = parsed?.choices?.[0]?.delta?.content;
-            if (typeof delta === "string" && delta.length) {
-              fullText += delta;
-              writeSse(controller, { type: "delta", delta });
+            const parsedObj = parsed as Record<string, unknown>;
+            const choices = parsedObj?.choices as Array<Record<string, unknown>> | undefined;
+            const delta = choices?.[0]?.delta as Record<string, unknown> | undefined;
+            const content = delta?.content as string | undefined;
+            if (typeof content === "string" && content.length) {
+              fullText += content;
+              writeSse(controller, { type: "delta", delta: content });
             }
           }
         }
@@ -454,7 +665,6 @@ serve(async (req) => {
             memory_id: id,
             score: null,
           }));
-          // Insert one by one to handle unique constraint gracefully
           for (const row of rows) {
             try {
               await supabase.from("memory_refs").insert(row);
@@ -493,6 +703,33 @@ serve(async (req) => {
           usedMemories,
           usedKnowledge,
         });
+
+        // 8) Memory extraction (async, best-effort)
+        // Don't await - let it run in background so client gets response faster
+        (async () => {
+          try {
+            const candidates = await extractMemoryCandidates(
+              userText,
+              extracted.cleaned,
+              OPENAI_API_KEY,
+              OPENAI_MODEL_CHAT
+            );
+            if (candidates.length > 0) {
+              await saveMemoryCandidates(
+                supabase,
+                userId,
+                candidates,
+                assistantMsg.id,
+                OPENAI_API_KEY,
+                OPENAI_MODEL_EMBED
+              );
+              console.log(`Extracted ${candidates.length} memory candidates`);
+            }
+          } catch (e) {
+            console.error("Memory extraction background task failed:", e);
+          }
+        })();
+
       } catch (e) {
         try {
           writeSse(controller, { type: "error", message: String(e) });
