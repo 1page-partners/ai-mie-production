@@ -1,19 +1,15 @@
 import { useState } from "react";
-import { Check, Pencil, Plus, MessageSquare, Trash2, X } from "lucide-react";
+import { Archive, ArchiveRestore, Check, Pencil, Plus, MessageSquare, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -25,8 +21,11 @@ interface ConversationListProps {
   onSelect: (conversation: Conversation) => void;
   onCreate: () => void;
   onUpdateTitle: (id: string, title: string) => void;
-  onDelete: (id: string) => void;
+  onArchive: (id: string) => void;
+  onUnarchive: (id: string) => void;
   isLoading: boolean;
+  showArchived: boolean;
+  onToggleArchived: (show: boolean) => void;
 }
 
 export function ConversationList({
@@ -35,8 +34,11 @@ export function ConversationList({
   onSelect,
   onCreate,
   onUpdateTitle,
-  onDelete,
+  onArchive,
+  onUnarchive,
   isLoading,
+  showArchived,
+  onToggleArchived,
 }: ConversationListProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -61,10 +63,19 @@ export function ConversationList({
   return (
     <div className="flex h-full w-64 flex-col border-r border-border bg-muted/30">
       <div className="flex items-center justify-between border-b border-border p-3">
-          <h2 className="text-sm font-semibold text-foreground">会話</h2>
-        <Button size="icon" variant="ghost" onClick={onCreate} className="h-8 w-8">
+        <h2 className="text-sm font-semibold text-foreground">会話</h2>
+        <Button size="icon" variant="ghost" onClick={onCreate} className="h-8 w-8" disabled={showArchived}>
           <Plus className="h-4 w-4" />
         </Button>
+      </div>
+
+      <div className="border-b border-border px-3 py-2">
+        <Tabs value={showArchived ? "archived" : "active"} onValueChange={(v) => onToggleArchived(v === "archived")}>
+          <TabsList className="grid w-full grid-cols-2 h-8">
+            <TabsTrigger value="active" className="text-xs">通常</TabsTrigger>
+            <TabsTrigger value="archived" className="text-xs">アーカイブ</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       <ScrollArea className="flex-1">
@@ -75,7 +86,7 @@ export function ConversationList({
             </div>
           ) : conversations.length === 0 ? (
             <div className="text-center py-8 text-sm text-muted-foreground">
-              会話なし
+              {showArchived ? "アーカイブなし" : "会話なし"}
             </div>
           ) : (
             conversations.map((conv) => (
@@ -133,51 +144,44 @@ export function ConversationList({
                       {conv.title || "無題"}
                     </span>
 
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
                         <Button
                           size="icon"
                           variant="ghost"
                           className="h-6 w-6 opacity-0 group-hover:opacity-100"
                           onClick={(e) => e.stopPropagation()}
-                          aria-label="会話を削除"
-                          title="会話を削除"
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <Pencil className="h-3 w-3" />
                         </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>会話を削除しますか？</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            この会話のメッセージ・参照ログ・フィードバックも削除されます。元に戻せません。
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDelete(conv.id);
-                            }}
-                          >
-                            削除
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEditing(conv);
-                      }}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation();
+                          startEditing(conv);
+                        }}>
+                          <Pencil className="mr-2 h-3 w-3" />
+                          名前変更
+                        </DropdownMenuItem>
+                        {showArchived ? (
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation();
+                            onUnarchive(conv.id);
+                          }}>
+                            <ArchiveRestore className="mr-2 h-3 w-3" />
+                            復元
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation();
+                            onArchive(conv.id);
+                          }}>
+                            <Archive className="mr-2 h-3 w-3" />
+                            アーカイブ
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </>
                 )}
               </div>

@@ -5,13 +5,38 @@ export type Conversation = Tables<"conversations">;
 export type Message = Tables<"conversation_messages">;
 
 export const conversationsService = {
-  async listConversations() {
-    const { data, error } = await supabase
+  async listConversations(options?: { archived?: boolean }) {
+    const archived = options?.archived ?? false;
+    let query = supabase
       .from("conversations")
       .select("*")
       .order("created_at", { ascending: false });
+
+    if (archived) {
+      query = query.not("archived_at", "is", null);
+    } else {
+      query = query.is("archived_at", null);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return data ?? [];
+  },
+
+  async archiveConversation(conversationId: string) {
+    const { error } = await supabase
+      .from("conversations")
+      .update({ archived_at: new Date().toISOString() })
+      .eq("id", conversationId);
+    if (error) throw error;
+  },
+
+  async unarchiveConversation(conversationId: string) {
+    const { error } = await supabase
+      .from("conversations")
+      .update({ archived_at: null })
+      .eq("id", conversationId);
+    if (error) throw error;
   },
 
   async createConversation(input: { userId: string; title?: string | null; projectId?: string | null }) {

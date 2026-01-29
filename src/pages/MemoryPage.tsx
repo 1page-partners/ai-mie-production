@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { MemoryList } from "@/components/memory/MemoryList";
 import { MemoryDetail } from "@/components/memory/MemoryDetail";
 import { MemoryCreateForm } from "@/components/memory/MemoryCreateForm";
-import { supabase } from "@/integrations/supabase/client";
+import { memoryService, type Memory } from "@/lib/services/memory";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,9 +14,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
-type Memory = Tables<"memories">;
 type MemoryType = "fact" | "preference" | "procedure" | "goal" | "context";
 
 export default function MemoryPage() {
@@ -25,6 +24,7 @@ export default function MemoryPage() {
   const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
   
   // Filters
   const [typeFilter, setTypeFilter] = useState<MemoryType | "all">("all");
@@ -38,22 +38,12 @@ export default function MemoryPage() {
   const loadMemories = async () => {
     setIsLoading(true);
     try {
-      let query = supabase.from("memories").select("*").order("updated_at", { ascending: false });
-
-      if (typeFilter !== "all") {
-        query = query.eq("type", typeFilter);
-      }
-      if (pinnedFilter !== null) {
-        query = query.eq("pinned", pinnedFilter);
-      }
-      if (activeFilter !== null) {
-        query = query.eq("is_active", activeFilter);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      setMemories(data || []);
+      const data = await memoryService.list({
+        typeFilter,
+        pinnedFilter,
+        activeFilter,
+      });
+      setMemories(data);
     } catch (error) {
       toast({
         title: "エラー",
@@ -66,34 +56,27 @@ export default function MemoryPage() {
   };
 
   const createMemory = async (memory: Omit<TablesInsert<"memories">, "user_id">) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      toast({
-        title: "エラー",
-        description: "ログインしてください",
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
-      const { data, error } = await supabase
-        .from("memories")
-        .insert({ ...memory, user_id: user.id })
-        .select()
-        .single();
-
-      if (error) throw error;
-      setMemories(prev => [data, ...prev]);
+      const { memory: created, embeddingSuccess } = await memoryService.create(memory);
+      setMemories(prev => [created, ...prev]);
       setIsCreateOpen(false);
-      toast({
-        title: "作成完了",
-        description: "メモリを保存しました",
-      });
+      
+      if (embeddingSuccess) {
+        toast({
+          title: "作成完了",
+          description: "メモリを保存しました（Embedding生成済み）",
+        });
+      } else {
+        toast({
+          title: "作成完了",
+          description: "メモリを保存しました（Embedding生成に失敗。詳細画面から再生成可能）",
+          variant: "default",
+        });
+      }
     } catch (error) {
       toast({
         title: "エラー",
-        description: "作成に失敗",
+        description: error instanceof Error ? error.message : "作成に失敗",
         variant: "destructive",
       });
     }
@@ -101,28 +84,46 @@ export default function MemoryPage() {
 
   const updateMemory = async (id: string, updates: TablesUpdate<"memories">) => {
     try {
-      const { data, error } = await supabase
-        .from("memories")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      setMemories(prev => prev.map(m => (m.id === id ? data : m)));
+      const { memory: updated, embeddingSuccess } = await memoryService.update(id, updates);
+      setMemories(prev => prev.map(m => (m.id === id ? updated : m)));
       if (selectedMemory?.id === id) {
-        setSelectedMemory(data);
+        setSelectedMemory(updated);
       }
-      toast({
-        title: "更新完了",
-        description: "変更を保存しました",
-      });
+      
+      if (updates.title !== undefined || updates.content !== undefined) {
+        if (embeddingSuccess) {
+          toast({ title: "更新完了", description: "変更を保存しました（Embedding更新済み）" });
+        } else {
+          toast({ title: "更新完了", description: "変更を保存しました（Embedding更新に失敗）" });
+        }
+      } else {
+        toast({ title: "更新完了", description: "変更を保存しました" });
+      }
     } catch (error) {
       toast({
         title: "エラー",
         description: "更新に失敗",
         variant: "destructive",
       });
+    }
+  };
+
+  const regenerateEmbedding = async () => {
+    if (!selectedMemory) return;
+    setIsRegenerating(true);
+    try {
+      const success = await memoryService.regenerateEmbedding(selectedMemory.id);
+      if (success) {
+        toast({ title: "成功", description: "Embeddingを再生成しました" });
+        // Reload to get updated embedding status
+        loadMemories();
+      } else {
+        toast({ title: "エラー", description: "Embedding生成に失敗", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "エラー", description: "再生成に失敗", variant: "destructive" });
+    } finally {
+      setIsRegenerating(false);
     }
   };
 
@@ -169,6 +170,8 @@ export default function MemoryPage() {
             <MemoryDetail
               memory={selectedMemory}
               onUpdate={(updates) => updateMemory(selectedMemory.id, updates)}
+              onRegenerateEmbedding={regenerateEmbedding}
+              isRegenerating={isRegenerating}
             />
           ) : (
             <div className="flex h-full items-center justify-center">

@@ -446,7 +446,7 @@ serve(async (req) => {
           .single();
         if (assistantErr) throw assistantErr;
 
-        // 7) 参照ログ保存
+        // 7) 参照ログ保存（重複は無視）
         if (usedMemoryIds.length) {
           const rows = usedMemoryIds.map((id) => ({
             conversation_id: conversationId,
@@ -454,8 +454,14 @@ serve(async (req) => {
             memory_id: id,
             score: null,
           }));
-          const { error } = await supabase.from("memory_refs").insert(rows);
-          if (error) throw error;
+          // Insert one by one to handle unique constraint gracefully
+          for (const row of rows) {
+            try {
+              await supabase.from("memory_refs").insert(row);
+            } catch {
+              // ignore duplicate
+            }
+          }
         }
         if (usedChunkIds.length) {
           const rows = usedChunkIds.map((id) => ({
@@ -464,8 +470,13 @@ serve(async (req) => {
             chunk_id: id,
             score: null,
           }));
-          const { error } = await supabase.from("knowledge_refs").insert(rows);
-          if (error) throw error;
+          for (const row of rows) {
+            try {
+              await supabase.from("knowledge_refs").insert(row);
+            } catch {
+              // ignore duplicate
+            }
+          }
         }
 
         const usedMemories = memoryMatches
