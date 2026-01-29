@@ -279,7 +279,10 @@ export type Database = {
           is_active: boolean
           pinned: boolean
           project_id: string | null
+          rejected_reason: string | null
+          reviewed_at: string | null
           source_message_id: string | null
+          status: string
           title: string
           type: Database["public"]["Enums"]["ai_mie_memory_type"]
           updated_at: string
@@ -294,7 +297,10 @@ export type Database = {
           is_active?: boolean
           pinned?: boolean
           project_id?: string | null
+          rejected_reason?: string | null
+          reviewed_at?: string | null
           source_message_id?: string | null
+          status?: string
           title: string
           type?: Database["public"]["Enums"]["ai_mie_memory_type"]
           updated_at?: string
@@ -309,7 +315,10 @@ export type Database = {
           is_active?: boolean
           pinned?: boolean
           project_id?: string | null
+          rejected_reason?: string | null
+          reviewed_at?: string | null
           source_message_id?: string | null
+          status?: string
           title?: string
           type?: Database["public"]["Enums"]["ai_mie_memory_type"]
           updated_at?: string

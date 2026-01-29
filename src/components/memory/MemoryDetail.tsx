@@ -8,10 +8,8 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Tables, TablesUpdate } from "@/integrations/supabase/types";
-
-type Memory = Tables<"memories">;
-type MemoryType = "fact" | "preference" | "procedure" | "goal" | "context";
+import type { Memory, MemoryType } from "@/lib/services/memory";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 
 interface MemoryDetailProps {
   memory: Memory;

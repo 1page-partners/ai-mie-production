@@ -8,6 +8,7 @@ export const contextService = {
   /**
    * Search memories using ILIKE (keyword fallback).
    * Vector search is done server-side in openai-chat.
+   * Only approved memories are returned for RAG.
    */
   async searchMemories(input: {
     queryText: string;
@@ -18,10 +19,12 @@ export const contextService = {
     if (!q) return [] as Memory[];
 
     // Use multiple search strategies: title OR content match
+    // Only approved and active memories are searched
     let query = supabase
       .from("memories")
       .select("*")
       .eq("is_active", true)
+      .eq("status", "approved")
       .or(`title.ilike.%${q}%,content.ilike.%${q}%`)
       .order("pinned", { ascending: false })
       .order("confidence", { ascending: false })
