@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
-import { MessageSquare, Brain, BookOpen, Settings, Sparkles } from "lucide-react";
+import { MessageSquare, Brain, BookOpen, Settings, Sparkles, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIsAdmin } from "@/hooks/useAdmin";
 
 const navItems = [
   { path: "/chat", label: "チャット", icon: MessageSquare },
@@ -9,8 +10,15 @@ const navItems = [
   { path: "/settings", label: "設定", icon: Settings },
 ];
 
+const adminNavItems = [
+  { path: "/admin", label: "管理者", icon: Shield },
+];
+
 export function AppSidebar() {
   const location = useLocation();
+  const { data: isAdmin } = useIsAdmin();
+
+  const allNavItems = isAdmin ? [...navItems, ...adminNavItems] : navItems;
 
   return (
     <aside className="flex h-full w-16 flex-col items-center bg-sidebar py-4 border-r border-sidebar-border">
@@ -19,7 +27,7 @@ export function AppSidebar() {
       </div>
       
       <nav className="flex flex-1 flex-col gap-2">
-        {navItems.map((item) => {
+        {allNavItems.map((item) => {
           const isActive = location.pathname === item.path || 
             (item.path === "/chat" && location.pathname === "/");
           

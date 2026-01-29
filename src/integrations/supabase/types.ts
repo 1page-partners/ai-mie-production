@@ -444,11 +444,86 @@ export type Database = {
         }
         Relationships: []
       }
+      usage_logs: {
+        Row: {
+          action_type: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      get_daily_usage: {
+        Args: { p_days?: number }
+        Returns: {
+          conversations: number
+          date: string
+          messages: number
+          new_memories: number
+        }[]
+      }
+      get_usage_stats: {
+        Args: { p_end_date?: string; p_start_date?: string }
+        Returns: {
+          active_users: number
+          approved_memories: number
+          candidate_memories: number
+          total_conversations: number
+          total_knowledge_chunks: number
+          total_knowledge_sources: number
+          total_memories: number
+          total_messages: number
+          total_users: number
+        }[]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       match_knowledge: {
         Args: {
           match_count?: number
@@ -494,6 +569,7 @@ export type Database = {
         | "procedure"
         | "goal"
         | "context"
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -630,6 +706,7 @@ export const Constants = {
         "goal",
         "context",
       ],
+      app_role: ["admin", "user"],
     },
   },
 } as const
