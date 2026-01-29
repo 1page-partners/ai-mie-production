@@ -8,3 +8,12 @@ verify_jwt = false
 
 [functions.openai-chat]
 verify_jwt = false
+
+[functions.pdf-ingest]
+verify_jwt = false
+
+[functions.gdocs-sync]
+verify_jwt = false
+
+[functions.notion-sync]
+verify_jwt = false

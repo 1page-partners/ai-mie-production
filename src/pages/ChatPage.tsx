@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatArea } from "@/components/chat/ChatArea";
@@ -19,14 +19,12 @@ export default function ChatPage() {
   const [referencedChunks, setReferencedChunks] = useState<KnowledgeChunk[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
-  // NOTE: 認証UIをバイパスしている間だけ、RLSに通すため匿名サインインを自動実行する。
-  // 失敗する場合は Supabase Auth 設定で Anonymous sign-ins を有効化してください。
   const ensureUser = async () => {
     const { data: userRes } = await supabase.auth.getUser();
     if (userRes?.user) return userRes.user;
 
-    // まずは既存サービス（通常のログイン）も試す
     const existing = await authService.getUser();
     if (existing) return existing;
 
@@ -36,11 +34,9 @@ export default function ChatPage() {
     return data.user;
   };
 
-  // Load conversations
   useEffect(() => {
     (async () => {
       try {
-        // 未ログインでもDB(RLS)アクセスできるようにする
         await ensureUser();
       } catch (e) {
         console.warn("ensureUser failed", e);
@@ -50,11 +46,17 @@ export default function ChatPage() {
     })();
   }, []);
 
-  // Load messages when conversation changes
+  useEffect(() => {
+    loadConversations();
+    setSelectedConversation(null);
+    setMessages([]);
+    setReferencedMemories([]);
+    setReferencedChunks([]);
+  }, [showArchived]);
+
   useEffect(() => {
     if (selectedConversation) {
       loadMessages(selectedConversation.id);
-      // 右ペインは「今回のターン」の参照のみ表示するため、切替時はクリア
       setReferencedMemories([]);
       setReferencedChunks([]);
     } else {
@@ -67,7 +69,7 @@ export default function ChatPage() {
   const loadConversations = async () => {
     setIsLoading(true);
     try {
-      const data = await conversationsService.listConversations();
+      const data = await conversationsService.listConversations({ archived: showArchived });
       setConversations(data);
     } catch (error) {
       toast({
@@ -133,10 +135,10 @@ export default function ChatPage() {
     }
   };
 
-  const deleteConversation = async (id: string) => {
+  const archiveConversation = async (id: string) => {
     try {
       await ensureUser();
-      await conversationsService.deleteConversation(id);
+      await conversationsService.archiveConversation(id);
 
       setConversations((prev) => prev.filter((c) => c.id !== id));
       if (selectedConversation?.id === id) {
@@ -145,11 +147,31 @@ export default function ChatPage() {
         setReferencedMemories([]);
         setReferencedChunks([]);
       }
-      toast({ title: "削除", description: "会話を削除しました" });
+      toast({ title: "アーカイブ", description: "会話をアーカイブしました" });
     } catch (error) {
       toast({
         title: "エラー",
-        description: error instanceof Error ? error.message : "会話の削除に失敗",
+        description: error instanceof Error ? error.message : "アーカイブに失敗",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const unarchiveConversation = async (id: string) => {
+    try {
+      await ensureUser();
+      await conversationsService.unarchiveConversation(id);
+
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      if (selectedConversation?.id === id) {
+        setSelectedConversation(null);
+        setMessages([]);
+      }
+      toast({ title: "復元", description: "会話を復元しました" });
+    } catch (error) {
+      toast({
+        title: "エラー",
+        description: error instanceof Error ? error.message : "復元に失敗",
         variant: "destructive",
       });
     }
@@ -169,7 +191,6 @@ export default function ChatPage() {
     try {
       const user = await ensureUser();
 
-      // 楽観的にユーザー発話を表示
       const optimisticUserMsg = {
         id: `local-user-${Date.now()}`,
         conversation_id: selectedConversation.id,
@@ -181,7 +202,6 @@ export default function ChatPage() {
       };
       setMessages((prev) => [...prev, optimisticUserMsg as any]);
 
-      // ストリーミング用のassistantメッセージ枠
       const streamAssistantId = `local-assistant-${Date.now()}`;
       setMessages((prev) =>
         [...prev, {
@@ -251,7 +271,6 @@ export default function ChatPage() {
             setReferencedMemories((evt.usedMemories ?? []) as Memory[]);
             setReferencedChunks((evt.usedKnowledge ?? []) as KnowledgeChunk[]);
 
-            // ストリーム枠を最終確定に置換
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === streamAssistantId
@@ -265,7 +284,6 @@ export default function ChatPage() {
               ),
             );
 
-            // DBに保存済みなので、正しい順序/IDで取り直す
             const refreshed = await conversationsService.listMessages(selectedConversation.id);
             setMessages(refreshed);
           }
@@ -323,8 +341,11 @@ export default function ChatPage() {
           onSelect={setSelectedConversation}
           onCreate={createConversation}
           onUpdateTitle={updateConversationTitle}
-          onDelete={deleteConversation}
+          onArchive={archiveConversation}
+          onUnarchive={unarchiveConversation}
           isLoading={isLoading}
+          showArchived={showArchived}
+          onToggleArchived={setShowArchived}
         />
         <ChatArea
           conversationId={selectedConversation?.id}

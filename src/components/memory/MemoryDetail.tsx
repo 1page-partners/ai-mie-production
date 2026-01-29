@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { Pin, PinOff, Save } from "lucide-react";
+import { Pin, PinOff, Save, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Tables, TablesUpdate } from "@/integrations/supabase/types";
 
@@ -15,9 +16,11 @@ type MemoryType = "fact" | "preference" | "procedure" | "goal" | "context";
 interface MemoryDetailProps {
   memory: Memory;
   onUpdate: (updates: TablesUpdate<"memories">) => void;
+  onRegenerateEmbedding?: () => void;
+  isRegenerating?: boolean;
 }
 
-export function MemoryDetail({ memory, onUpdate }: MemoryDetailProps) {
+export function MemoryDetail({ memory, onUpdate, onRegenerateEmbedding, isRegenerating }: MemoryDetailProps) {
   const [title, setTitle] = useState(memory.title);
   const [content, setContent] = useState(memory.content);
   const [type, setType] = useState<MemoryType>(memory.type as MemoryType);
@@ -25,6 +28,8 @@ export function MemoryDetail({ memory, onUpdate }: MemoryDetailProps) {
   const [isActive, setIsActive] = useState(memory.is_active);
   const [pinned, setPinned] = useState(memory.pinned);
   const [hasChanges, setHasChanges] = useState(false);
+
+  const hasEmbedding = memory.embedding !== null;
 
   useEffect(() => {
     setTitle(memory.title);
@@ -73,8 +78,30 @@ export function MemoryDetail({ memory, onUpdate }: MemoryDetailProps) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-border p-4">
-        <h2 className="text-lg font-semibold text-foreground">メモリ詳細</h2>
         <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-foreground">メモリ詳細</h2>
+          {hasEmbedding ? (
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+              Embedding済
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+              Embedding未生成
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {onRegenerateEmbedding && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRegenerateEmbedding}
+              disabled={isRegenerating}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isRegenerating ? "animate-spin" : ""}`} />
+              Embedding再生成
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
