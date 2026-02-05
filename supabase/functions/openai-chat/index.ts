@@ -29,27 +29,37 @@ type KnowledgeMatchRow = {
   score: number;
 };
 
- type OriginPrincipleRow = {
-   id: string;
-   principle_key: string;
-   principle_label: string;
-   description: string;
-   polarity: string | null;
-   confidence: number;
-   score: number;
- };
- 
- type OriginDecisionRow = {
-   id: string;
-   incident_key: string;
-   decision: string;
-   reasoning: string;
-   context_conditions: string | null;
-   non_negotiables: string | null;
-   confidence: number;
-   score: number;
- };
- 
+type OriginPrincipleRow = {
+  id: string;
+  principle_key: string;
+  principle_label: string;
+  description: string;
+  polarity: string | null;
+  confidence: number;
+  score: number;
+};
+
+type OriginDecisionRow = {
+  id: string;
+  incident_key: string;
+  decision: string;
+  reasoning: string;
+  context_conditions: string | null;
+  non_negotiables: string | null;
+  confidence: number;
+  score: number;
+};
+
+type SharedInsightRow = {
+  id: string;
+  topic: string;
+  summary: string;
+  tags: string[];
+  contributors: string[];
+  created_by: string;
+  score: number;
+};
+
 type MemoryCandidate = {
   type: "fact" | "preference" | "procedure" | "goal" | "context";
   title: string;
@@ -65,7 +75,8 @@ type SSEEvent =
       assistantText: string;
       assistantMessageId: string;
       usedMemories: Array<MemoryRow & { score: number | null }>;
-      usedKnowledge: Array<{ id: string; source_name: string; chunk_index: number; content: string; meta: unknown; score: number | null }>;
+      usedKnowledge: Array<{ id: string; source_id: string; source_name: string; source_version: number; chunk_index: number; content: string; meta: unknown; score: number | null }>;
+      usedSharedInsights?: SharedInsightRow[];
     }
   | { type: "error"; message: string };
 
@@ -92,10 +103,12 @@ function extractTrailingRefJson(text: string): {
   cleaned: string;
   memoryIds: string[];
   chunkIds: string[];
+  sharedInsightIds: string[];
 } {
   const trimmed = text.trim();
-  const m = trimmed.match(/\{\s*"memory_ids"\s*:\s*\[[^\]]*\]\s*,\s*"knowledge_chunk_ids"\s*:\s*\[[^\]]*\]\s*\}\s*$/);
-  if (!m) return { cleaned: trimmed, memoryIds: [], chunkIds: [] };
+  // Extended pattern to include shared_insight_ids
+  const m = trimmed.match(/\{\s*"memory_ids"\s*:\s*\[[^\]]*\]\s*,\s*"knowledge_chunk_ids"\s*:\s*\[[^\]]*\](?:\s*,\s*"shared_insight_ids"\s*:\s*\[[^\]]*\])?\s*\}\s*$/);
+  if (!m) return { cleaned: trimmed, memoryIds: [], chunkIds: [], sharedInsightIds: [] };
   try {
     const json = JSON.parse(m[0]);
     const memoryIds = Array.isArray(json.memory_ids)
@@ -104,13 +117,17 @@ function extractTrailingRefJson(text: string): {
     const chunkIds = Array.isArray(json.knowledge_chunk_ids)
       ? json.knowledge_chunk_ids.filter((x: unknown) => typeof x === "string")
       : [];
+    const sharedInsightIds = Array.isArray(json.shared_insight_ids)
+      ? json.shared_insight_ids.filter((x: unknown) => typeof x === "string")
+      : [];
     return {
       cleaned: trimmed.slice(0, trimmed.length - m[0].length).trim(),
       memoryIds,
       chunkIds,
+      sharedInsightIds,
     };
   } catch {
-    return { cleaned: trimmed, memoryIds: [], chunkIds: [] };
+    return { cleaned: trimmed, memoryIds: [], chunkIds: [], sharedInsightIds: [] };
   }
 }
 
@@ -131,66 +148,92 @@ function embeddingToPgVectorString(embedding: number[]) {
 
 function buildSystemPrompt(input: {
   memories: Array<MemoryRow & { score: number | null }>;
-  knowledge: Array<{ id: string; source_name: string; chunk_index: number; content: string; meta: unknown; score: number | null }>;
-   principles?: OriginPrincipleRow[];
-   decisions?: OriginDecisionRow[];
+  knowledge: Array<{ id: string; source_id: string; source_name: string; source_version: number; chunk_index: number; content: string; meta: unknown; score: number | null }>;
+  principles?: OriginPrincipleRow[];
+  decisions?: OriginDecisionRow[];
+  sharedInsights?: Array<SharedInsightRow & { displayNames: string[] }>;
+  knowledgeUpdates?: Array<{ sourceName: string; oldVersion: number; newVersion: number }>;
 }) {
-   // Separate pinned (constitution) memories from regular memories
-   const pinnedMemories = input.memories.filter((m) => m.pinned);
-   const regularMemories = input.memories.filter((m) => !m.pinned);
- 
-   const constitutionLines = pinnedMemories
-     .map((m) => `- [${m.type}] ${m.title}: ${m.content}`)
-     .join("\n");
- 
-   const principleLines = (input.principles ?? [])
-     .map((p) => `- ${p.principle_label}: ${p.description} (confidence: ${Math.round(p.confidence * 100)}%)`)
-     .join("\n");
- 
-   const decisionLines = (input.decisions ?? [])
-     .map(
-       (d) =>
-         `- [${d.incident_key}] 判断: ${d.decision}\n  理由: ${d.reasoning}${d.non_negotiables ? `\n  譲れない点: ${d.non_negotiables}` : ""}`
-     )
-     .join("\n");
- 
-   const memoryLines = regularMemories
+  // Separate pinned (constitution) memories from regular memories
+  const pinnedMemories = input.memories.filter((m) => m.pinned);
+  const regularMemories = input.memories.filter((m) => !m.pinned);
+
+  const constitutionLines = pinnedMemories
+    .map((m) => `- [${m.type}] ${m.title}: ${m.content}`)
+    .join("\n");
+
+  const principleLines = (input.principles ?? [])
+    .map((p) => `- ${p.principle_label}: ${p.description} (confidence: ${Math.round(p.confidence * 100)}%)`)
+    .join("\n");
+
+  const decisionLines = (input.decisions ?? [])
+    .map(
+      (d) =>
+        `- [${d.incident_key}] 判断: ${d.decision}\n  理由: ${d.reasoning}${d.non_negotiables ? `\n  譲れない点: ${d.non_negotiables}` : ""}`
+    )
+    .join("\n");
+
+  const memoryLines = regularMemories
     .map(
       (m) =>
-         `- (id:${m.id} score:${m.score ?? "null"} confidence:${m.confidence}) [${m.type}] ${m.title}: ${m.content}`,
+        `- (id:${m.id} score:${m.score ?? "null"} confidence:${m.confidence}) [${m.type}] ${m.title}: ${m.content}`,
     )
     .join("\n");
 
   const knowledgeLines = input.knowledge
     .map(
       (k) =>
-         `- (chunk_id:${k.id} score:${k.score ?? "null"} source:${k.source_name}) ${k.content}`,
+        `- (chunk_id:${k.id} score:${k.score ?? "null"} source:${k.source_name} v${k.source_version}) ${k.content}`,
     )
     .join("\n");
 
-   return `[CONSTITUTION - 常時遵守する基本方針]
- ${constitutionLines || "- (none)"}
+  // Shared Insights section
+  const sharedInsightLines = (input.sharedInsights ?? [])
+    .map((si) => {
+      const contributorStr = si.displayNames.length > 0
+        ? `(${si.displayNames.join(", ")})`
+        : "(社内メンバー)";
+      return `- (id:${si.id} score:${si.score?.toFixed(2) ?? "null"}) [${si.topic}] ${contributorStr}: ${si.summary}`;
+    })
+    .join("\n");
 
- [ORIGIN_PRINCIPLES - 判断軸]
- ${principleLines || "- (none)"}
- 
- [ORIGIN_DECISION_EXAMPLES - 参考判断例]
- ${decisionLines || "- (none)"}
- 
- [MEMORY - 長期記憶]
+  // Knowledge update notice
+  let updateNotice = "";
+  if (input.knowledgeUpdates && input.knowledgeUpdates.length > 0) {
+    const updates = input.knowledgeUpdates.map(
+      (u) => `「${u.sourceName}」が v${u.oldVersion}→v${u.newVersion} に更新`
+    ).join("、");
+    updateNotice = `\n⚠️ 補足：参照資料の更新あり（${updates}）。本回答は最新版前提です。\n`;
+  }
+
+  return `${updateNotice}[CONSTITUTION - 常時遵守する基本方針]
+${constitutionLines || "- (none)"}
+
+[ORIGIN_PRINCIPLES - 判断軸]
+${principleLines || "- (none)"}
+
+[ORIGIN_DECISION_EXAMPLES - 参考判断例]
+${decisionLines || "- (none)"}
+
+[SHARED_INSIGHTS - 社内共有知]
+${sharedInsightLines || "- (none)"}
+
+[MEMORY - 長期記憶]
 ${memoryLines || "- (none)"}
 
- [KNOWLEDGE - 資料/マニュアル]
+[KNOWLEDGE - 資料/マニュアル]
 ${knowledgeLines || "- (none)"}
 
- [RULES]
- - CONSTITUTIONに記載された方針は最優先で遵守する
- - ORIGIN_PRINCIPLESに基づいて判断を行う
- - ORIGIN_DECISION_EXAMPLESを参考に、類似状況では同様の判断傾向を維持する
- - MEMORY/KNOWLEDGEを根拠に回答する
- - 判断に迷う場合は、ORIGIN_PRINCIPLESの判断軸を参照して一貫性のある回答をする
- - 不明な場合は不明と認める
-- 回答末尾に参照IDをJSONで必ず付与する：\n  {"memory_ids":[...],"knowledge_chunk_ids":[...]}
+[RULES]
+- CONSTITUTIONに記載された方針は最優先で遵守する
+- ORIGIN_PRINCIPLESに基づいて判断を行う
+- ORIGIN_DECISION_EXAMPLESを参考に、類似状況では同様の判断傾向を維持する
+- SHARED_INSIGHTSは社内で共有された知見。「以前、{名前/社内メンバー}が似た観点で整理しており、必要なら確認すると良い」のような提案表現で言及可能。断定せず、直接引用しない。
+- MEMORY/KNOWLEDGEを根拠に回答する
+- 判断に迷う場合は、ORIGIN_PRINCIPLESの判断軸を参照して一貫性のある回答をする
+- 不明な場合は不明と認める
+- 回答末尾に参照IDをJSONで必ず付与する：
+  {"memory_ids":[...],"knowledge_chunk_ids":[...],"shared_insight_ids":[...]}
 
 [/CONTEXT]`;
 }
@@ -497,7 +540,8 @@ serve(async (req) => {
 
         // 3) Supabaseからコンテキスト取得（approved memories only）
         let memoryMatches: Array<MemoryRow & { score: number | null }> = [];
-        let knowledgeMatches: Array<{ id: string; source_name: string; chunk_index: number; content: string; meta: unknown; score: number | null }> = [];
+        let knowledgeMatches: Array<{ id: string; source_id: string; source_name: string; source_version: number; chunk_index: number; content: string; meta: unknown; score: number | null }> = [];
+        let sharedInsightMatches: Array<SharedInsightRow & { displayNames: string[] }> = [];
 
         const memRpc = await supabase.rpc("match_memories", {
           query_embedding: embeddingStr,
@@ -542,6 +586,7 @@ serve(async (req) => {
           });
         }
 
+        // Knowledge search with source version
         const knowRpc = await supabase.rpc("match_knowledge", {
           query_embedding: embeddingStr,
           match_count: 6,
@@ -553,7 +598,7 @@ serve(async (req) => {
           const ids = knowRpc.data.map((r: KnowledgeMatchRow) => r.chunk_id);
           const { data: chunks, error: chunksErr } = await supabase
             .from("knowledge_chunks")
-            .select("id,chunk_index,content,meta, knowledge_sources!inner(name,status,project_id)")
+            .select("id,chunk_index,content,meta,source_id, knowledge_sources!inner(id,name,status,project_id,version)")
             .in("id", ids)
             .eq("knowledge_sources.status", "ready");
           if (chunksErr) throw chunksErr;
@@ -568,7 +613,9 @@ serve(async (req) => {
             const sources = chunk.knowledge_sources as Record<string, unknown> | undefined;
             return {
               id: String(chunk.id),
+              source_id: String(sources?.id ?? chunk.source_id ?? ""),
               source_name: String(sources?.name ?? "Unknown Source"),
+              source_version: Number(sources?.version ?? 1),
               chunk_index: Number(chunk.chunk_index ?? 0),
               content: String(chunk.content ?? ""),
               meta: chunk.meta ?? {},
@@ -579,7 +626,7 @@ serve(async (req) => {
           // LIKE fallback
           let q = supabase
             .from("knowledge_chunks")
-            .select("id,chunk_index,content,meta, knowledge_sources!inner(name,status,project_id)")
+            .select("id,chunk_index,content,meta,source_id, knowledge_sources!inner(id,name,status,project_id,version)")
             .ilike("content", `%${userText}%`)
             .eq("knowledge_sources.status", "ready")
             .limit(6);
@@ -591,7 +638,9 @@ serve(async (req) => {
             const sources = chunk.knowledge_sources as Record<string, unknown> | undefined;
             return {
               id: String(chunk.id),
+              source_id: String(sources?.id ?? chunk.source_id ?? ""),
               source_name: String(sources?.name ?? "Unknown Source"),
+              source_version: Number(sources?.version ?? 1),
               chunk_index: Number(chunk.chunk_index ?? 0),
               content: String(chunk.content ?? ""),
               meta: chunk.meta ?? {},
@@ -600,15 +649,74 @@ serve(async (req) => {
           });
         }
 
-        // 4) Origin Principles & Decisions (for origin-style reasoning)
+        // 4) Shared Insights search (NEW)
+        const insightsRpc = await supabase.rpc("match_shared_insights", {
+          query_embedding: embeddingStr,
+          match_count: 3,
+          p_project_id: projectId,
+        });
+
+        if (!insightsRpc.error && Array.isArray(insightsRpc.data)) {
+          // Filter by score threshold (0.78)
+          const rawInsights = (insightsRpc.data as Array<Record<string, unknown>>)
+            .filter((r) => typeof r.score === "number" && r.score >= 0.78);
+
+          if (rawInsights.length > 0) {
+            // Get contributor display names with attribution permission
+            const allContributorIds = new Set<string>();
+            for (const insight of rawInsights) {
+              const contributors = insight.contributors as string[] ?? [];
+              const createdBy = insight.created_by as string;
+              contributors.forEach((c) => allContributorIds.add(c));
+              if (createdBy) allContributorIds.add(createdBy);
+            }
+
+            // Fetch profile_prefs for attribution permission
+            const { data: prefs } = await supabase
+              .from("profile_prefs")
+              .select("user_id, allow_attribution")
+              .in("user_id", Array.from(allContributorIds));
+            const allowedUsers = new Set(
+              (prefs ?? []).filter((p: any) => p.allow_attribution).map((p: any) => p.user_id)
+            );
+
+            // Fetch display names for allowed users
+            const { data: profiles } = await supabase
+              .from("profiles")
+              .select("user_id, display_name")
+              .in("user_id", Array.from(allowedUsers));
+            const nameMap = new Map<string, string>();
+            for (const p of profiles ?? []) {
+              if (p.display_name) nameMap.set(p.user_id, p.display_name);
+            }
+
+            sharedInsightMatches = rawInsights.map((r) => {
+              const contributors = r.contributors as string[] ?? [];
+              const displayNames = contributors
+                .filter((c) => allowedUsers.has(c) && nameMap.has(c))
+                .map((c) => nameMap.get(c)!);
+              return {
+                id: String(r.id),
+                topic: String(r.topic),
+                summary: String(r.summary),
+                tags: (r.tags as string[]) ?? [],
+                contributors: contributors,
+                created_by: String(r.created_by),
+                score: Number(r.score),
+                displayNames,
+              };
+            });
+          }
+        }
+
+        // 5) Origin Principles & Decisions
         let originPrinciples: OriginPrincipleRow[] = [];
         let originDecisions: OriginDecisionRow[] = [];
 
-        // Fetch origin principles (similarity search)
         const principlesRpc = await supabase.rpc("match_origin_principles", {
           query_embedding: embeddingStr,
           match_count: 5,
-          p_user_id: null, // Get any user's principles for now
+          p_user_id: null,
         });
 
         if (!principlesRpc.error && Array.isArray(principlesRpc.data)) {
@@ -625,11 +733,10 @@ serve(async (req) => {
             }));
         }
 
-        // Fetch origin decisions (similarity search)
         const decisionsRpc = await supabase.rpc("match_origin_decisions", {
           query_embedding: embeddingStr,
           match_count: 3,
-          p_user_id: null, // Get any user's decisions for now
+          p_user_id: null,
         });
 
         if (!decisionsRpc.error && Array.isArray(decisionsRpc.data)) {
@@ -647,7 +754,7 @@ serve(async (req) => {
             }));
         }
 
-        // Also fetch pinned memories (constitution) unconditionally
+        // 6) Pinned memories (constitution) unconditionally
         const { data: pinnedMemories } = await supabase
           .from("memories")
           .select("id,type,title,content,confidence,pinned,updated_at")
@@ -657,7 +764,6 @@ serve(async (req) => {
           .limit(20);
 
         if (pinnedMemories && pinnedMemories.length > 0) {
-          // Add pinned memories that aren't already in memoryMatches
           const existingIds = new Set(memoryMatches.map((m) => m.id));
           for (const pm of pinnedMemories) {
             if (!existingIds.has(pm.id)) {
@@ -675,7 +781,43 @@ serve(async (req) => {
           }
         }
 
-        // 5) history（直近N件）
+        // 7) Knowledge version diff detection
+        let knowledgeUpdates: Array<{ sourceName: string; oldVersion: number; newVersion: number }> = [];
+        if (knowledgeMatches.length > 0) {
+          const sourceIds = [...new Set(knowledgeMatches.map((k) => k.source_id))];
+          
+          // Get past knowledge_refs for this conversation with source versions
+          const { data: pastRefs } = await supabase
+            .from("knowledge_refs")
+            .select("source_id, source_version")
+            .eq("conversation_id", conversationId)
+            .in("source_id", sourceIds)
+            .not("source_version", "is", null)
+            .order("created_at", { ascending: false })
+            .limit(50);
+
+          if (pastRefs && pastRefs.length > 0) {
+            const oldVersionMap = new Map<string, number>();
+            for (const ref of pastRefs) {
+              if (ref.source_id && ref.source_version && !oldVersionMap.has(ref.source_id)) {
+                oldVersionMap.set(ref.source_id, ref.source_version);
+              }
+            }
+
+            for (const k of knowledgeMatches) {
+              const oldVer = oldVersionMap.get(k.source_id);
+              if (oldVer !== undefined && oldVer < k.source_version) {
+                knowledgeUpdates.push({
+                  sourceName: k.source_name,
+                  oldVersion: oldVer,
+                  newVersion: k.source_version,
+                });
+              }
+            }
+          }
+        }
+
+        // 8) history（直近N件）
         const { data: historyRows, error: histErr } = await supabase
           .from("conversation_messages")
           .select("role,content,created_at")
@@ -691,20 +833,20 @@ serve(async (req) => {
             return { role: msg.role as string, content: msg.content as string };
           });
 
-        // 6) OpenAIに送るmessages構築
-        // Build context for injection into prompt
+        // 9) Build context with shared insights
         const contextData = buildSystemPrompt({
-           memories: memoryMatches,
-           knowledge: knowledgeMatches,
-           principles: originPrinciples,
-           decisions: originDecisions,
-         });
+          memories: memoryMatches,
+          knowledge: knowledgeMatches,
+          principles: originPrinciples,
+          decisions: originDecisions,
+          sharedInsights: sharedInsightMatches,
+          knowledgeUpdates,
+        });
 
-        // Use Responses API with stored prompt if OPENAI_PROMPT_ID is set
+        // 10) OpenAI call
         let openaiRes: Response;
 
         if (OPENAI_PROMPT_ID) {
-          // Use Responses API with stored prompt
           const responsesReq = {
             model: OPENAI_MODEL_CHAT,
             stream: true,
@@ -732,7 +874,6 @@ serve(async (req) => {
             120_000,
           );
         } else {
-          // Fallback to Chat Completions API
           const openaiReq = {
             model: OPENAI_MODEL_CHAT,
             stream: true,
@@ -762,7 +903,7 @@ serve(async (req) => {
           throw new Error(`OpenAI chat failed (${openaiRes.status}): ${raw}`);
         }
 
-        // OpenAI SSEを読み取りつつ、クライアントへdeltaを転送
+        // 11) SSE streaming
         const reader = openaiRes.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -794,7 +935,6 @@ serve(async (req) => {
             const choices = parsedObj?.choices as Array<Record<string, unknown>> | undefined;
             const delta = choices?.[0]?.delta as Record<string, unknown> | undefined;
             const content = delta?.content as string | undefined;
-            // Responses API uses different structure
             const textDelta = (parsedObj as any)?.delta as string | undefined;
             const outputContent = textDelta ?? content;
             if (typeof outputContent === "string" && outputContent.length) {
@@ -807,11 +947,13 @@ serve(async (req) => {
         const extracted = extractTrailingRefJson(fullText);
         const fallbackMemoryIds = memoryMatches.map((m) => m.id);
         const fallbackChunkIds = knowledgeMatches.map((k) => k.id);
+        const fallbackInsightIds = sharedInsightMatches.map((si) => si.id);
 
         const usedMemoryIds = extracted.memoryIds.length ? extracted.memoryIds : fallbackMemoryIds;
         const usedChunkIds = extracted.chunkIds.length ? extracted.chunkIds : fallbackChunkIds;
+        const usedInsightIds = extracted.sharedInsightIds.length ? extracted.sharedInsightIds : fallbackInsightIds;
 
-        // 6) assistant message 保存
+        // 12) Save assistant message
         const { data: assistantMsg, error: assistantErr } = await supabase
           .from("conversation_messages")
           .insert({
@@ -823,13 +965,14 @@ serve(async (req) => {
               model: OPENAI_MODEL_CHAT,
               memory_ids: usedMemoryIds,
               knowledge_chunk_ids: usedChunkIds,
+              shared_insight_ids: usedInsightIds,
             },
           })
           .select()
           .single();
         if (assistantErr) throw assistantErr;
 
-        // 7) 参照ログ保存（重複は無視）
+        // 13) Save reference logs
         if (usedMemoryIds.length) {
           const rows = usedMemoryIds.map((id) => ({
             conversation_id: conversationId,
@@ -845,16 +988,42 @@ serve(async (req) => {
             }
           }
         }
+
+        // Save knowledge_refs with source_id and source_version
         if (usedChunkIds.length) {
+          const chunkToSource = new Map<string, { source_id: string; source_version: number }>();
+          for (const k of knowledgeMatches) {
+            chunkToSource.set(k.id, { source_id: k.source_id, source_version: k.source_version });
+          }
+
           const rows = usedChunkIds.map((id) => ({
             conversation_id: conversationId,
             assistant_message_id: assistantMsg.id,
             chunk_id: id,
             score: null,
+            source_id: chunkToSource.get(id)?.source_id ?? null,
+            source_version: chunkToSource.get(id)?.source_version ?? null,
           }));
           for (const row of rows) {
             try {
               await supabase.from("knowledge_refs").insert(row);
+            } catch {
+              // ignore duplicate
+            }
+          }
+        }
+
+        // Save shared_insight_refs (NEW)
+        if (usedInsightIds.length) {
+          const rows = usedInsightIds.map((id) => ({
+            conversation_id: conversationId,
+            assistant_message_id: assistantMsg.id,
+            insight_id: id,
+            score: sharedInsightMatches.find((si) => si.id === id)?.score ?? null,
+          }));
+          for (const row of rows) {
+            try {
+              await supabase.from("shared_insight_refs").insert(row);
             } catch {
               // ignore duplicate
             }
@@ -867,6 +1036,8 @@ serve(async (req) => {
         const usedKnowledge = knowledgeMatches
           .filter((k) => usedChunkIds.includes(k.id))
           .map((k) => ({ ...k, score: k.score ?? null }));
+        const usedSharedInsights = sharedInsightMatches
+          .filter((si) => usedInsightIds.includes(si.id));
 
         writeSse(controller, {
           type: "final",
@@ -874,10 +1045,10 @@ serve(async (req) => {
           assistantMessageId: assistantMsg.id,
           usedMemories,
           usedKnowledge,
+          usedSharedInsights,
         });
 
-        // 8) Memory extraction (async, best-effort)
-        // Don't await - let it run in background so client gets response faster
+        // 14) Memory extraction (async, best-effort)
         (async () => {
           try {
             const candidates = await extractMemoryCandidates(

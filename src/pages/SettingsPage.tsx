@@ -3,10 +3,13 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { memoryService } from "@/lib/services/memory";
 import { knowledgeService } from "@/lib/services/knowledge";
+import { useProfilePrefs } from "@/hooks/useProfilePrefs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle, LogOut, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -282,6 +285,17 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Attribution Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">共有知設定</CardTitle>
+            <CardDescription>Shared Insights での人名表示許可</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <AttributionToggle />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Dify設定</CardTitle>
@@ -299,5 +313,30 @@ export default function SettingsPage() {
         </Card>
       </div>
     </AppLayout>
+  );
+}
+
+function AttributionToggle() {
+  const { allowAttribution, setAllowAttribution, isUpdating, isLoading } = useProfilePrefs();
+
+  if (isLoading) {
+    return <div className="text-sm text-muted-foreground">読込中...</div>;
+  }
+
+  return (
+    <div className="flex items-center justify-between">
+      <div className="space-y-0.5">
+        <Label htmlFor="allow-attribution">社内共有知に名前を表示</Label>
+        <p className="text-sm text-muted-foreground">
+          ONにすると、あなたが貢献した共有知で名前が表示されます
+        </p>
+      </div>
+      <Switch
+        id="allow-attribution"
+        checked={allowAttribution}
+        onCheckedChange={setAllowAttribution}
+        disabled={isUpdating}
+      />
+    </div>
   );
 }

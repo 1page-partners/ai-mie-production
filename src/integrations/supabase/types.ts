@@ -178,6 +178,8 @@ export type Database = {
           created_at: string
           id: string
           score: number | null
+          source_id: string | null
+          source_version: number | null
         }
         Insert: {
           assistant_message_id?: string | null
@@ -186,6 +188,8 @@ export type Database = {
           created_at?: string
           id?: string
           score?: number | null
+          source_id?: string | null
+          source_version?: number | null
         }
         Update: {
           assistant_message_id?: string | null
@@ -194,6 +198,8 @@ export type Database = {
           created_at?: string
           id?: string
           score?: number | null
+          source_id?: string | null
+          source_version?: number | null
         }
         Relationships: [
           {
@@ -217,10 +223,18 @@ export type Database = {
             referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "knowledge_refs_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_sources"
+            referencedColumns: ["id"]
+          },
         ]
       }
       knowledge_sources: {
         Row: {
+          change_summary: string | null
           created_at: string
           external_id_or_path: string | null
           id: string
@@ -232,8 +246,10 @@ export type Database = {
           type: Database["public"]["Enums"]["ai_mie_knowledge_source_type"]
           updated_at: string
           user_id: string
+          version: number
         }
         Insert: {
+          change_summary?: string | null
           created_at?: string
           external_id_or_path?: string | null
           id?: string
@@ -245,8 +261,10 @@ export type Database = {
           type: Database["public"]["Enums"]["ai_mie_knowledge_source_type"]
           updated_at?: string
           user_id: string
+          version?: number
         }
         Update: {
+          change_summary?: string | null
           created_at?: string
           external_id_or_path?: string | null
           id?: string
@@ -258,6 +276,7 @@ export type Database = {
           type?: Database["public"]["Enums"]["ai_mie_knowledge_source_type"]
           updated_at?: string
           user_id?: string
+          version?: number
         }
         Relationships: [
           {
@@ -509,6 +528,27 @@ export type Database = {
         }
         Relationships: []
       }
+      profile_prefs: {
+        Row: {
+          allow_attribution: boolean
+          created_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allow_attribution?: boolean
+          created_at?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allow_attribution?: boolean
+          created_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -645,6 +685,130 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      shared_insight_refs: {
+        Row: {
+          assistant_message_id: string | null
+          conversation_id: string
+          created_at: string
+          id: string
+          insight_id: string
+          score: number | null
+        }
+        Insert: {
+          assistant_message_id?: string | null
+          conversation_id: string
+          created_at?: string
+          id?: string
+          insight_id: string
+          score?: number | null
+        }
+        Update: {
+          assistant_message_id?: string | null
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          insight_id?: string
+          score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shared_insight_refs_assistant_message_id_fkey"
+            columns: ["assistant_message_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shared_insight_refs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shared_insight_refs_insight_id_fkey"
+            columns: ["insight_id"]
+            isOneToOne: false
+            referencedRelation: "shared_insights"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shared_insights: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          contributors: string[]
+          created_at: string
+          created_by: string
+          embedding: string | null
+          id: string
+          meta: Json
+          project_id: string | null
+          source_conversation_id: string | null
+          source_message_ids: string[]
+          status: string
+          summary: string
+          tags: string[]
+          topic: string
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          contributors?: string[]
+          created_at?: string
+          created_by: string
+          embedding?: string | null
+          id?: string
+          meta?: Json
+          project_id?: string | null
+          source_conversation_id?: string | null
+          source_message_ids?: string[]
+          status?: string
+          summary: string
+          tags?: string[]
+          topic: string
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          contributors?: string[]
+          created_at?: string
+          created_by?: string
+          embedding?: string | null
+          id?: string
+          meta?: Json
+          project_id?: string | null
+          source_conversation_id?: string | null
+          source_message_ids?: string[]
+          status?: string
+          summary?: string
+          tags?: string[]
+          topic?: string
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shared_insights_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shared_insights_source_conversation_id_fkey"
+            columns: ["source_conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       usage_logs: {
         Row: {
@@ -792,6 +956,22 @@ export type Database = {
           principle_key: string
           principle_label: string
           score: number
+        }[]
+      }
+      match_shared_insights: {
+        Args: {
+          match_count?: number
+          p_project_id?: string
+          query_embedding: string
+        }
+        Returns: {
+          contributors: string[]
+          created_by: string
+          id: string
+          score: number
+          summary: string
+          tags: string[]
+          topic: string
         }[]
       }
     }
