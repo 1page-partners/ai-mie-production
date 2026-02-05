@@ -18,6 +18,16 @@ type MemoryRow = {
   confidence: number;
   pinned: boolean;
   updated_at: string;
+  episode_at?: string | null;
+};
+
+type EpisodicMemoryRow = {
+  id: string;
+  title: string;
+  content: string;
+  episode_at: string;
+  days_ago: number;
+  confidence: number;
 };
 
 type KnowledgeMatchRow = {
@@ -153,6 +163,7 @@ function buildSystemPrompt(input: {
   decisions?: OriginDecisionRow[];
   sharedInsights?: Array<SharedInsightRow & { displayNames: string[] }>;
   knowledgeUpdates?: Array<{ sourceName: string; oldVersion: number; newVersion: number }>;
+  episodicMemories?: EpisodicMemoryRow[];
 }) {
   // Separate pinned (constitution) memories from regular memories
   const pinnedMemories = input.memories.filter((m) => m.pinned);
@@ -197,6 +208,19 @@ function buildSystemPrompt(input: {
     })
     .join("\n");
 
+  // Episodic memories section (temporal context)
+  const episodicLines = (input.episodicMemories ?? [])
+    .map((em) => {
+      const daysAgoText = em.days_ago === 0 ? "今日" :
+        em.days_ago === 1 ? "昨日" :
+        em.days_ago <= 7 ? `${em.days_ago}日前` :
+        em.days_ago <= 14 ? "先週" :
+        em.days_ago <= 30 ? `${Math.floor(em.days_ago / 7)}週間前` :
+        `${Math.floor(em.days_ago / 30)}ヶ月前`;
+      return `- (id:${em.id} ${daysAgoText}) ${em.title}: ${em.content}`;
+    })
+    .join("\n");
+
   // Knowledge update notice
   let updateNotice = "";
   if (input.knowledgeUpdates && input.knowledgeUpdates.length > 0) {
@@ -218,6 +242,9 @@ ${decisionLines || "- (none)"}
 [SHARED_INSIGHTS - 社内共有知]
 ${sharedInsightLines || "- (none)"}
 
+[EPISODIC_MEMORY - 過去の会話・出来事]
+${episodicLines || "- (none)"}
+
 [MEMORY - 長期記憶]
 ${memoryLines || "- (none)"}
 
@@ -229,6 +256,7 @@ ${knowledgeLines || "- (none)"}
 - ORIGIN_PRINCIPLESに基づいて判断を行う
 - ORIGIN_DECISION_EXAMPLESを参考に、類似状況では同様の判断傾向を維持する
 - SHARED_INSIGHTSは社内で共有された知見。「以前、{名前/社内メンバー}が似た観点で整理しており、必要なら確認すると良い」のような提案表現で言及可能。断定せず、直接引用しない。
+- EPISODIC_MEMORYは過去の会話や出来事の記録。「先週話したように」「前回〜の件で確認した通り」のように時間軸を意識して自然に言及する。一貫した人物として過去のやり取りを覚えている姿勢を示す。
 - MEMORY/KNOWLEDGEを根拠に回答する
 - 判断に迷う場合は、ORIGIN_PRINCIPLESの判断軸を参照して一貫性のある回答をする
 - 不明な場合は不明と認める
@@ -781,6 +809,29 @@ serve(async (req) => {
           }
         }
 
+        // 6.5) Episodic memories (recent temporal context)
+        let episodicMemories: EpisodicMemoryRow[] = [];
+        const episodicRpc = await supabase.rpc("get_recent_episodic_memories", {
+          p_user_id: userId,
+          p_project_id: projectId,
+          p_days_back: 30,
+          p_limit: 5,
+        });
+
+        if (!episodicRpc.error && Array.isArray(episodicRpc.data)) {
+          episodicMemories = (episodicRpc.data as unknown[]).map((r) => {
+            const row = r as Record<string, unknown>;
+            return {
+              id: String(row.id),
+              title: String(row.title),
+              content: String(row.content),
+              episode_at: String(row.episode_at),
+              days_ago: Number(row.days_ago ?? 0),
+              confidence: Number(row.confidence ?? 0),
+            };
+          });
+        }
+
         // 7) Knowledge version diff detection
         let knowledgeUpdates: Array<{ sourceName: string; oldVersion: number; newVersion: number }> = [];
         if (knowledgeMatches.length > 0) {
@@ -833,7 +884,7 @@ serve(async (req) => {
             return { role: msg.role as string, content: msg.content as string };
           });
 
-        // 9) Build context with shared insights
+        // 9) Build context with shared insights and episodic memories
         const contextData = buildSystemPrompt({
           memories: memoryMatches,
           knowledge: knowledgeMatches,
@@ -841,6 +892,7 @@ serve(async (req) => {
           decisions: originDecisions,
           sharedInsights: sharedInsightMatches,
           knowledgeUpdates,
+          episodicMemories,
         });
 
         // 10) OpenAI call

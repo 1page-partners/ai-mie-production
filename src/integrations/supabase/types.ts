@@ -872,6 +872,22 @@ export type Database = {
           new_memories: number
         }[]
       }
+      get_recent_episodic_memories: {
+        Args: {
+          p_days_back?: number
+          p_limit?: number
+          p_project_id?: string
+          p_user_id?: string
+        }
+        Returns: {
+          confidence: number
+          content: string
+          days_ago: number
+          episode_at: string
+          id: string
+          title: string
+        }[]
+      }
       get_usage_stats: {
         Args: { p_end_date?: string; p_start_date?: string }
         Returns: {

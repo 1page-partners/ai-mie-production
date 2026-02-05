@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Memory, MemoryType } from "@/lib/services/memory";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 
+type ExtendedMemoryType = MemoryType | "episodic";
+
 interface MemoryDetailProps {
   memory: Memory;
   onUpdate: (updates: TablesUpdate<"memories">) => void;
@@ -21,10 +23,15 @@ interface MemoryDetailProps {
 export function MemoryDetail({ memory, onUpdate, onRegenerateEmbedding, isRegenerating }: MemoryDetailProps) {
   const [title, setTitle] = useState(memory.title);
   const [content, setContent] = useState(memory.content);
-  const [type, setType] = useState<MemoryType>(memory.type as MemoryType);
+  const [type, setType] = useState<ExtendedMemoryType>(memory.type as ExtendedMemoryType);
   const [confidence, setConfidence] = useState(memory.confidence);
   const [isActive, setIsActive] = useState(memory.is_active);
   const [pinned, setPinned] = useState(memory.pinned);
+  const [episodeAt, setEpisodeAt] = useState(
+    (memory as any).episode_at 
+      ? new Date((memory as any).episode_at).toISOString().slice(0, 16) 
+      : ""
+  );
   const [hasChanges, setHasChanges] = useState(false);
 
   const hasEmbedding = memory.embedding !== null;
@@ -32,33 +39,43 @@ export function MemoryDetail({ memory, onUpdate, onRegenerateEmbedding, isRegene
   useEffect(() => {
     setTitle(memory.title);
     setContent(memory.content);
-    setType(memory.type as MemoryType);
+    setType(memory.type as ExtendedMemoryType);
     setConfidence(memory.confidence);
     setIsActive(memory.is_active);
     setPinned(memory.pinned);
+    setEpisodeAt(
+      (memory as any).episode_at 
+        ? new Date((memory as any).episode_at).toISOString().slice(0, 16) 
+        : ""
+    );
     setHasChanges(false);
   }, [memory]);
 
   useEffect(() => {
+    const memoryEpisodeAt = (memory as any).episode_at 
+      ? new Date((memory as any).episode_at).toISOString().slice(0, 16) 
+      : "";
     const changed =
       title !== memory.title ||
       content !== memory.content ||
       type !== memory.type ||
       confidence !== memory.confidence ||
       isActive !== memory.is_active ||
-      pinned !== memory.pinned;
+      pinned !== memory.pinned ||
+      episodeAt !== memoryEpisodeAt;
     setHasChanges(changed);
-  }, [title, content, type, confidence, isActive, pinned, memory]);
+  }, [title, content, type, confidence, isActive, pinned, episodeAt, memory]);
 
   const handleSave = () => {
     onUpdate({
       title,
       content,
-      type,
+      type: type as any,
       confidence,
       is_active: isActive,
       pinned,
-    });
+      episode_at: episodeAt ? new Date(episodeAt).toISOString() : null,
+    } as any);
   };
 
   const togglePinned = () => {
@@ -151,7 +168,7 @@ export function MemoryDetail({ memory, onUpdate, onRegenerateEmbedding, isRegene
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="type">種別</Label>
-            <Select value={type} onValueChange={(v) => setType(v as MemoryType)}>
+          <Select value={type} onValueChange={(v) => setType(v as ExtendedMemoryType)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -161,6 +178,7 @@ export function MemoryDetail({ memory, onUpdate, onRegenerateEmbedding, isRegene
                 <SelectItem value="procedure">手順</SelectItem>
                 <SelectItem value="goal">目標</SelectItem>
                 <SelectItem value="context">文脈</SelectItem>
+                <SelectItem value="episodic">エピソード</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -177,6 +195,21 @@ export function MemoryDetail({ memory, onUpdate, onRegenerateEmbedding, isRegene
             />
           </div>
         </div>
+
+        {type === "episodic" && (
+          <div className="space-y-2">
+            <Label htmlFor="episodeAt">出来事の日時</Label>
+            <Input
+              id="episodeAt"
+              type="datetime-local"
+              value={episodeAt}
+              onChange={(e) => setEpisodeAt(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              この会話・出来事がいつ発生したかを記録します（「先週話した内容」のような参照に使われます）
+            </p>
+          </div>
+        )}
 
         <div className="flex items-center justify-between rounded-lg border border-border p-4">
           <div>
