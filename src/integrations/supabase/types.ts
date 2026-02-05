@@ -561,7 +561,7 @@ export type Database = {
       }
     }
     Enums: {
-      ai_mie_knowledge_source_type: "gdocs" | "pdf" | "notion"
+      ai_mie_knowledge_source_type: "gdocs" | "pdf" | "notion" | "gdrive"
       ai_mie_knowledge_status: "pending" | "processing" | "ready" | "error"
       ai_mie_memory_type:
         | "fact"
@@ -697,7 +697,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      ai_mie_knowledge_source_type: ["gdocs", "pdf", "notion"],
+      ai_mie_knowledge_source_type: ["gdocs", "pdf", "notion", "gdrive"],
       ai_mie_knowledge_status: ["pending", "processing", "ready", "error"],
       ai_mie_memory_type: [
         "fact",
