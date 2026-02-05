@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shield, BarChart3, Users } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function AdminPage() {
   const { data: isAdmin, isLoading } = useIsAdmin();
@@ -27,23 +28,26 @@ export default function AdminPage() {
   return (
     <AppLayout>
       <div className="flex h-full flex-col">
-        <div className="border-b border-border p-4">
+        <div className="border-b border-border p-3 md:p-4">
           <div className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
             <h1 className="text-lg font-semibold">管理者</h1>
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto p-6">
-          <Tabs defaultValue="dashboard" className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="dashboard" className="gap-2">
+        <ScrollArea className="flex-1">
+          <div className="p-3 md:p-6">
+            <Tabs defaultValue="dashboard" className="space-y-4 md:space-y-6">
+              <TabsList className="w-full md:w-auto">
+              <TabsTrigger value="dashboard" className="gap-2 flex-1 md:flex-none">
                 <BarChart3 className="h-4 w-4" />
-                ダッシュボード
+                <span className="hidden sm:inline">ダッシュボード</span>
+                <span className="sm:hidden">統計</span>
               </TabsTrigger>
-              <TabsTrigger value="users" className="gap-2">
+              <TabsTrigger value="users" className="gap-2 flex-1 md:flex-none">
                 <Users className="h-4 w-4" />
-                ユーザー管理
+                <span className="hidden sm:inline">ユーザー管理</span>
+                <span className="sm:hidden">ユーザー</span>
               </TabsTrigger>
             </TabsList>
 
@@ -55,7 +59,8 @@ export default function AdminPage() {
               <UserManagement />
             </TabsContent>
           </Tabs>
-        </div>
+          </div>
+        </ScrollArea>
       </div>
     </AppLayout>
   );

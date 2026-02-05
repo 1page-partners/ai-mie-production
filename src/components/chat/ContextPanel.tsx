@@ -2,7 +2,10 @@ import { Brain, BookOpen, ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Memory = Tables<"memories">;
@@ -22,11 +25,14 @@ interface ContextPanelProps {
 }
 
 export function ContextPanel({ memories, chunks }: ContextPanelProps) {
+  const isMobile = useIsMobile();
   const [memoriesExpanded, setMemoriesExpanded] = useState(true);
   const [knowledgeExpanded, setKnowledgeExpanded] = useState(true);
 
-  return (
-    <div className="flex h-full w-72 flex-col border-l border-border bg-muted/30">
+  const totalRefs = memories.length + chunks.length;
+
+  const panelContent = (
+    <>
       <div className="border-b border-border p-3">
         <h2 className="text-sm font-semibold text-foreground">文脈</h2>
         <p className="text-xs text-muted-foreground">この会話で参照</p>
@@ -135,6 +141,41 @@ export function ContextPanel({ memories, chunks }: ContextPanelProps) {
           </div>
         </div>
       </ScrollArea>
+    </>
+  );
+
+  // Mobile: Show as a sheet/drawer
+  if (isMobile) {
+    return (
+      <Sheet>
+        <SheetTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="fixed bottom-20 right-3 z-50 gap-2 shadow-lg"
+          >
+            <Brain className="h-4 w-4" />
+            <span>文脈</span>
+            {totalRefs > 0 && (
+              <Badge variant="secondary" className="ml-1">
+                {totalRefs}
+              </Badge>
+            )}
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="right" className="w-80 p-0">
+          <div className="flex h-full flex-col">
+            {panelContent}
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  // Desktop layout
+  return (
+    <div className="flex h-full w-72 flex-col border-l border-border bg-muted/30">
+      {panelContent}
     </div>
   );
 }
