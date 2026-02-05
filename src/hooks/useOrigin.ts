@@ -2,6 +2,7 @@
  import { useAuth } from "./useAuth";
  import {
    hasRole,
+  canAccessOriginPages,
    setupService,
    decisionsService,
    principlesService,
@@ -21,7 +22,7 @@
  
    return useQuery({
      queryKey: ["isOrigin", user?.id],
-     queryFn: () => hasRole("origin"),
+    queryFn: () => canAccessOriginPages(),
      enabled: !!user,
      staleTime: 5 * 60 * 1000,
    });
