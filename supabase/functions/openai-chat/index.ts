@@ -715,7 +715,7 @@ serve(async (req) => {
               },
             ],
             prompt: {
-              prompt_id: OPENAI_PROMPT_ID,
+              id: OPENAI_PROMPT_ID,
             },
           };
 
