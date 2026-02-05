@@ -814,7 +814,7 @@ serve(async (req) => {
         const episodicRpc = await supabase.rpc("get_recent_episodic_memories", {
           p_user_id: userId,
           p_project_id: projectId,
-          p_days_back: 30,
+          p_days_back: 365,
           p_limit: 5,
         });
 
