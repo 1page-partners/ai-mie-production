@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Shield, ShieldOff, User } from "lucide-react";
+import { Shield, ShieldOff, User, UserCog, Eye } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { AppRole } from "@/lib/services/admin";
 
 export function UserManagement() {
@@ -17,18 +23,23 @@ export function UserManagement() {
   const revokeRole = useRevokeRole();
   const [loadingUserId, setLoadingUserId] = useState<string | null>(null);
 
-  const handleToggleAdmin = async (userId: string, currentRoles: AppRole[]) => {
-    const isAdmin = currentRoles.includes("admin");
+  const handleSetRole = async (userId: string, currentRoles: AppRole[], newRole: AppRole) => {
+    // Check if user already has this role
+    if (currentRoles.includes(newRole)) {
+      toast({ title: "既に付与済み", description: `${newRole}権限は既に付与されています` });
+      return;
+    }
+
     setLoadingUserId(userId);
 
     try {
-      if (isAdmin) {
-        await revokeRole.mutateAsync({ userId, role: "admin" });
-        toast({ title: "権限を削除", description: "admin権限を削除しました" });
-      } else {
-        await grantRole.mutateAsync({ userId, role: "admin" });
-        toast({ title: "権限を付与", description: "admin権限を付与しました" });
+      // Remove existing roles first
+      for (const role of currentRoles) {
+        await revokeRole.mutateAsync({ userId, role });
       }
+      // Grant new role
+      await grantRole.mutateAsync({ userId, role: newRole });
+      toast({ title: "権限を変更", description: `${newRole}権限を付与しました` });
     } catch (e) {
       toast({
         title: "エラー",
@@ -49,6 +60,26 @@ export function UserManagement() {
       </Card>
     );
   }
+
+  const getRoleBadge = (roles: AppRole[]) => {
+    if (roles.includes("admin")) {
+      return (
+        <Badge variant="default" className="bg-primary">
+          <Shield className="mr-1 h-3 w-3" />
+          Admin
+        </Badge>
+      );
+    }
+    if (roles.includes("origin")) {
+      return (
+        <Badge variant="default" className="bg-accent text-accent-foreground">
+          <Eye className="mr-1 h-3 w-3" />
+          Origin
+        </Badge>
+      );
+    }
+    return <Badge variant="secondary">User</Badge>;
+  };
 
   return (
     <Card>
@@ -114,41 +145,47 @@ export function UserManagement() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
-                        {isAdmin ? (
-                          <Badge variant="default" className="bg-primary">
-                            <Shield className="mr-1 h-3 w-3" />
-                            Admin
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">User</Badge>
-                        )}
-                      </div>
+                      <div className="flex gap-1">{getRoleBadge(user.roles)}</div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(user.created_at).toLocaleDateString("ja-JP")}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant={isAdmin ? "outline" : "default"}
-                        disabled={isLoading}
-                        onClick={() => handleToggleAdmin(user.user_id, user.roles)}
-                      >
-                        {isLoading ? (
-                          "..."
-                        ) : isAdmin ? (
-                          <>
-                            <ShieldOff className="mr-1 h-4 w-4" />
-                            権限削除
-                          </>
-                        ) : (
-                          <>
-                            <Shield className="mr-1 h-4 w-4" />
-                            Admin付与
-                          </>
-                        )}
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="outline" disabled={isLoading}>
+                            {isLoading ? "..." : (
+                              <>
+                                <UserCog className="mr-1 h-4 w-4" />
+                                ロール変更
+                              </>
+                            )}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => handleSetRole(user.user_id, user.roles, "admin")}
+                            disabled={user.roles.includes("admin")}
+                          >
+                            <Shield className="mr-2 h-4 w-4" />
+                            Admin に変更
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleSetRole(user.user_id, user.roles, "origin")}
+                            disabled={user.roles.includes("origin")}
+                          >
+                            <Eye className="mr-2 h-4 w-4" />
+                            Origin に変更
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleSetRole(user.user_id, user.roles, "user")}
+                            disabled={user.roles.includes("user")}
+                          >
+                            <User className="mr-2 h-4 w-4" />
+                            User に変更
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 );
