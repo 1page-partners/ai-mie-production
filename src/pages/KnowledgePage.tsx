@@ -9,7 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Upload, Search, FileText, Loader2, RefreshCw, AlertCircle, StickyNote } from "lucide-react";
+ import { HardDrive } from "lucide-react";
 import { AddNotionDialog } from "@/components/knowledge/AddNotionDialog";
+ import { AddGDriveDialog } from "@/components/knowledge/AddGDriveDialog";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
@@ -29,6 +31,7 @@ const sourceTypeLabels: Record<string, string> = {
   pdf: "PDF",
   gdocs: "Google Docs",
   notion: "Notion",
+   gdrive: "Google Drive",
 };
 
 export default function KnowledgePage() {
@@ -173,6 +176,15 @@ export default function KnowledgePage() {
                   </Button>
                 }
               />
+               <AddGDriveDialog
+                 onSuccess={loadSources}
+                 trigger={
+                   <Button variant="outline">
+                     <HardDrive className="mr-2 h-4 w-4" />
+                     Drive追加
+                   </Button>
+                 }
+               />
             </div>
           </div>
 

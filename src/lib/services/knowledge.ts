@@ -9,6 +9,12 @@ export interface NotionSourceInput {
   pageId: string;
   accessToken: string;
 }
+ 
+ export interface GDriveSourceInput {
+   name: string;
+   fileId: string;
+   accessToken: string;
+ }
 
 export const knowledgeService = {
   async listSources() {
@@ -61,6 +67,45 @@ export const knowledgeService = {
 
     return source;
   },
+ 
+   async addGDriveSource(input: GDriveSourceInput): Promise<KnowledgeSource> {
+     const { data: userData } = await supabase.auth.getUser();
+     const userId = userData?.user?.id;
+     if (!userId) throw new Error("Not authenticated");
+ 
+     // Extract file ID from URL if needed
+     let fileId = input.fileId.trim();
+     // Match patterns like /file/d/{id}/ or /document/d/{id}/ or /spreadsheets/d/{id}/
+     const urlMatch = fileId.match(/\/(?:file|document|spreadsheets|presentation)\/d\/([a-zA-Z0-9_-]+)/);
+     if (urlMatch) {
+       fileId = urlMatch[1];
+     }
+ 
+     const { data: source, error: insertError } = await supabase
+       .from("knowledge_sources")
+       .insert({
+         user_id: userId,
+         name: input.name,
+         type: "gdrive",
+         status: "pending",
+         external_id_or_path: fileId,
+         meta: { access_token: input.accessToken },
+       })
+       .select()
+       .single();
+     if (insertError) throw insertError;
+ 
+     // Trigger gdrive-sync function
+     try {
+       await supabase.functions.invoke("gdrive-sync", {
+         body: { sourceId: source.id },
+       });
+     } catch (e) {
+       console.error("gdrive-sync invocation failed:", e);
+     }
+ 
+     return source;
+   },
 
   async getSource(sourceId: string) {
     const { data, error } = await supabase
@@ -124,6 +169,9 @@ export const knowledgeService = {
       case "gdocs":
         functionName = "gdocs-sync";
         break;
+       case "gdrive":
+         functionName = "gdrive-sync";
+         break;
       case "notion":
         functionName = "notion-sync";
         break;

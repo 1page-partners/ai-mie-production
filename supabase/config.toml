@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.notion-sync]
 verify_jwt = false
+ 
+ [functions.gdrive-sync]
+ verify_jwt = false
