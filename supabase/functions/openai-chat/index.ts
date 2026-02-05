@@ -714,8 +714,8 @@ serve(async (req) => {
                 content: `${contextData}\n\n---\n\n会話履歴:\n${history.map((h) => `${h.role}: ${h.content}`).join("\n")}\n\n---\n\nユーザーの質問: ${userText}`,
               },
             ],
-            instructions: {
-              id: OPENAI_PROMPT_ID,
+            prompt: {
+              prompt_id: OPENAI_PROMPT_ID,
             },
           };
 
