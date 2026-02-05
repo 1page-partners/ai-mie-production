@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
- import { MessageSquare, Brain, BookOpen, Settings, Sparkles, Shield, FileEdit, Scale, MessageSquarePlus, FileCheck } from "lucide-react";
+ import { MessageSquare, Brain, BookOpen, Settings, Sparkles, Shield, FileEdit, Scale, MessageSquarePlus, FileCheck, Lightbulb } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsAdmin } from "@/hooks/useAdmin";
  import { useIsOrigin } from "@/hooks/useOrigin";
@@ -11,6 +11,7 @@ interface AppSidebarProps {
 const navItems = [
   { path: "/chat", label: "チャット", icon: MessageSquare },
   { path: "/knowledge", label: "ナレッジ", icon: BookOpen },
+  { path: "/insights", label: "共有知", icon: Lightbulb },
 ];
 
 const adminNavItems = [

@@ -1,4 +1,4 @@
-import { Brain, BookOpen, ChevronDown, ChevronRight } from "lucide-react";
+import { Brain, BookOpen, Lightbulb, ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,15 @@ import type { Tables } from "@/integrations/supabase/types";
 type Memory = Tables<"memories">;
 type KnowledgeChunk = Tables<"knowledge_chunks"> & { source_name?: string };
 
+export type SharedInsightRef = {
+  id: string;
+  topic: string;
+  summary: string;
+  tags: string[];
+  displayNames: string[];
+  score: number | null;
+};
+
 const memoryTypeLabels: Record<string, string> = {
   fact: "事実",
   preference: "嗜好",
@@ -22,14 +31,16 @@ const memoryTypeLabels: Record<string, string> = {
 interface ContextPanelProps {
   memories: Memory[];
   chunks: KnowledgeChunk[];
+  sharedInsights?: SharedInsightRef[];
 }
 
-export function ContextPanel({ memories, chunks }: ContextPanelProps) {
+export function ContextPanel({ memories, chunks, sharedInsights = [] }: ContextPanelProps) {
   const isMobile = useIsMobile();
   const [memoriesExpanded, setMemoriesExpanded] = useState(true);
   const [knowledgeExpanded, setKnowledgeExpanded] = useState(true);
+  const [insightsExpanded, setInsightsExpanded] = useState(true);
 
-  const totalRefs = memories.length + chunks.length;
+  const totalRefs = memories.length + chunks.length + sharedInsights.length;
 
   const panelContent = (
     <>
@@ -87,6 +98,63 @@ export function ContextPanel({ memories, chunks }: ContextPanelProps) {
                           確度: {Math.round(memory.confidence * 100)}%
                         </span>
                       </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Shared Insights Section */}
+          <div>
+            <button
+              className="flex w-full items-center gap-2 text-sm font-medium text-foreground hover:text-primary"
+              onClick={() => setInsightsExpanded(!insightsExpanded)}
+            >
+              {insightsExpanded ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+              <Lightbulb className="h-4 w-4 text-amber-500" />
+              <span>共有知</span>
+              <Badge variant="secondary" className="ml-auto">
+                {sharedInsights.length}
+              </Badge>
+            </button>
+
+            {insightsExpanded && (
+              <div className="mt-2 space-y-2">
+                {sharedInsights.length === 0 ? (
+                  <p className="text-xs text-muted-foreground pl-6">参照共有知なし</p>
+                ) : (
+                  sharedInsights.map((insight) => (
+                    <div
+                      key={insight.id}
+                      className="ml-6 rounded-md border border-border bg-card p-2"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="outline" className="text-xs">
+                          {insight.topic}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {insight.summary}
+                      </p>
+                      {insight.displayNames.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          貢献者: {insight.displayNames.join(", ")}
+                        </p>
+                      )}
+                      {insight.tags.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {insight.tags.slice(0, 2).map((tag) => (
+                            <Badge key={tag} variant="outline" className="text-xs">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))
                 )}

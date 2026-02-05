@@ -10,11 +10,12 @@ import MemoryPage from "./pages/MemoryPage";
 import KnowledgePage from "./pages/KnowledgePage";
 import SettingsPage from "./pages/SettingsPage";
 import AdminPage from "./pages/AdminPage";
+import InsightsPage from "./pages/InsightsPage";
 import NotFound from "./pages/NotFound";
- import SetupOriginPage from "./pages/SetupOriginPage";
- import OriginIncidentsPage from "./pages/OriginIncidentsPage";
- import OriginFeedbackPage from "./pages/OriginFeedbackPage";
- import SetupReviewPage from "./pages/SetupReviewPage";
+import SetupOriginPage from "./pages/SetupOriginPage";
+import OriginIncidentsPage from "./pages/OriginIncidentsPage";
+import OriginFeedbackPage from "./pages/OriginFeedbackPage";
+import SetupReviewPage from "./pages/SetupReviewPage";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
           <Route path="/memory" element={<ProtectedRoute requireOriginAccess><MemoryPage /></ProtectedRoute>} />
           <Route path="/knowledge" element={<ProtectedRoute><KnowledgePage /></ProtectedRoute>} />
+          <Route path="/insights" element={<ProtectedRoute><InsightsPage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute requireOriginAccess><SettingsPage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
           <Route path="/setup-origin" element={<ProtectedRoute requireOriginAccess><SetupOriginPage /></ProtectedRoute>} />
@@ -44,3 +46,4 @@ const App = () => (
 );
 
 export default App;
+

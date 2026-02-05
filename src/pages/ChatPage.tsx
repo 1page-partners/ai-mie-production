@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/lib/services/auth";
 import { conversationsService, type Conversation, type Message } from "@/lib/services/conversations";
 import type { Memory, KnowledgeChunk } from "@/lib/services/context";
+import type { SharedInsightRef } from "@/components/chat/ContextPanel";
 import { feedbackService } from "@/lib/services/feedback";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -21,6 +22,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [referencedMemories, setReferencedMemories] = useState<Memory[]>([]);
   const [referencedChunks, setReferencedChunks] = useState<KnowledgeChunk[]>([]);
+  const [referencedInsights, setReferencedInsights] = useState<SharedInsightRef[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
@@ -56,6 +58,7 @@ export default function ChatPage() {
     setMessages([]);
     setReferencedMemories([]);
     setReferencedChunks([]);
+    setReferencedInsights([]);
   }, [showArchived]);
 
   useEffect(() => {
@@ -63,10 +66,12 @@ export default function ChatPage() {
       loadMessages(selectedConversation.id);
       setReferencedMemories([]);
       setReferencedChunks([]);
+      setReferencedInsights([]);
     } else {
       setMessages([]);
       setReferencedMemories([]);
       setReferencedChunks([]);
+      setReferencedInsights([]);
     }
   }, [selectedConversation]);
 
@@ -150,6 +155,7 @@ export default function ChatPage() {
         setMessages([]);
         setReferencedMemories([]);
         setReferencedChunks([]);
+        setReferencedInsights([]);
       }
       toast({ title: "アーカイブ", description: "会話をアーカイブしました" });
     } catch (error) {
@@ -275,6 +281,16 @@ export default function ChatPage() {
           if (evt.type === "final") {
             setReferencedMemories((evt.usedMemories ?? []) as Memory[]);
             setReferencedChunks((evt.usedKnowledge ?? []) as KnowledgeChunk[]);
+            // Set shared insights from final event
+            const insights = (evt.usedSharedInsights ?? []).map((si: any) => ({
+              id: si.id,
+              topic: si.topic,
+              summary: si.summary,
+              tags: si.tags ?? [],
+              displayNames: si.displayNames ?? [],
+              score: si.score ?? null,
+            }));
+            setReferencedInsights(insights);
 
             setMessages((prev) =>
               prev.map((m) =>
@@ -342,6 +358,7 @@ export default function ChatPage() {
     setMessages([]);
     setReferencedMemories([]);
     setReferencedChunks([]);
+    setReferencedInsights([]);
   };
 
   // Mobile layout
@@ -373,6 +390,7 @@ export default function ChatPage() {
               <ContextPanel
                 memories={referencedMemories}
                 chunks={referencedChunks}
+                sharedInsights={referencedInsights}
               />
             </>
           ) : (
@@ -421,6 +439,7 @@ export default function ChatPage() {
         <ContextPanel
           memories={referencedMemories}
           chunks={referencedChunks}
+          sharedInsights={referencedInsights}
         />
       </div>
     </AppLayout>
