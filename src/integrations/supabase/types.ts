@@ -294,6 +294,7 @@ export type Database = {
           content: string
           created_at: string
           embedding: string | null
+          episode_at: string | null
           id: string
           is_active: boolean
           pinned: boolean
@@ -312,6 +313,7 @@ export type Database = {
           content: string
           created_at?: string
           embedding?: string | null
+          episode_at?: string | null
           id?: string
           is_active?: boolean
           pinned?: boolean
@@ -330,6 +332,7 @@ export type Database = {
           content?: string
           created_at?: string
           embedding?: string | null
+          episode_at?: string | null
           id?: string
           is_active?: boolean
           pinned?: boolean
