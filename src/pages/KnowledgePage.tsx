@@ -8,10 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Upload, Search, FileText, Loader2, RefreshCw, AlertCircle, StickyNote } from "lucide-react";
- import { HardDrive } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Upload, Search, FileText, Loader2, RefreshCw, AlertCircle, StickyNote, HardDrive, Lightbulb, BookOpen } from "lucide-react";
 import { AddNotionDialog } from "@/components/knowledge/AddNotionDialog";
- import { AddGDriveDialog } from "@/components/knowledge/AddGDriveDialog";
+import { AddGDriveDialog } from "@/components/knowledge/AddGDriveDialog";
+import { SharedInsightsTab } from "@/components/knowledge/SharedInsightsTab";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
@@ -31,7 +32,7 @@ const sourceTypeLabels: Record<string, string> = {
   pdf: "PDF",
   gdocs: "Google Docs",
   notion: "Notion",
-   gdrive: "Google Drive",
+  gdrive: "Google Drive",
 };
 
 export default function KnowledgePage() {
@@ -44,6 +45,7 @@ export default function KnowledgePage() {
   const [isSearching, setIsSearching] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
+  const [activeMainTab, setActiveMainTab] = useState("sources");
 
   useEffect(() => {
     loadSources();
@@ -151,138 +153,159 @@ export default function KnowledgePage() {
         <div className="flex-1 flex flex-col p-6 space-y-6 overflow-auto">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-foreground">ナレッジ</h1>
-            <div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="application/pdf"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-                {isUploading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Upload className="mr-2 h-4 w-4" />
-                )}
-                PDFアップロード
-              </Button>
-              <AddNotionDialog
-                onSuccess={loadSources}
-                trigger={
-                  <Button variant="outline">
-                    <StickyNote className="mr-2 h-4 w-4" />
-                    Notion追加
-                  </Button>
-                }
-              />
-               <AddGDriveDialog
-                 onSuccess={loadSources}
-                 trigger={
-                   <Button variant="outline">
-                     <HardDrive className="mr-2 h-4 w-4" />
-                     Drive追加
-                   </Button>
-                 }
-               />
-            </div>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">ソース（{sources.length}）</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading && sources.length === 0 ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                </div>
-              ) : sources.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">ソースなし</p>
-              ) : (
-                <div className="space-y-2">
-                  {sources.map((source) => {
-                    const meta = getSourceMeta(source);
-                    const isSyncing = syncingIds.has(source.id) || source.status === "processing";
+          <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="flex-1">
+            <TabsList>
+              <TabsTrigger value="sources" className="gap-2">
+                <BookOpen className="h-4 w-4" />
+                ソース
+              </TabsTrigger>
+              <TabsTrigger value="insights" className="gap-2">
+                <Lightbulb className="h-4 w-4" />
+                共有知
+              </TabsTrigger>
+            </TabsList>
 
-                    return (
-                      <div
-                        key={source.id}
-                        className="flex items-center justify-between p-3 rounded-lg border border-border"
-                      >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium text-foreground truncate">{source.name}</p>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <span>{sourceTypeLabels[source.type] ?? source.type}</span>
-                              {meta?.chunks && <span>・{meta.chunks}チャンク</span>}
-                              {source.last_synced_at && (
-                                <span>・{new Date(source.last_synced_at).toLocaleString()}</span>
-                              )}
-                            </div>
-                            {source.status === "error" && meta?.error && (
-                              <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                                <AlertCircle className="h-3 w-3" />
-                                {meta.error.slice(0, 100)}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className={statusColors[source.status] ?? "bg-gray-100"}>
-                            {statusLabels[source.status] ?? source.status}
-                          </Badge>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleSync(source.id)}
-                            disabled={isSyncing}
-                            title="再同期"
-                          >
-                            <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">検索</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="検索…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && searchKnowledge()}
+            <TabsContent value="sources" className="mt-4 space-y-6">
+              {/* Upload buttons */}
+              <div className="flex flex-wrap gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handleFileSelect}
+                  className="hidden"
                 />
-                <Button onClick={searchKnowledge} disabled={isSearching}>
-                  {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+                  {isUploading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="mr-2 h-4 w-4" />
+                  )}
+                  PDFアップロード
                 </Button>
+                <AddNotionDialog
+                  onSuccess={loadSources}
+                  trigger={
+                    <Button variant="outline">
+                      <StickyNote className="mr-2 h-4 w-4" />
+                      Notion追加
+                    </Button>
+                  }
+                />
+                <AddGDriveDialog
+                  onSuccess={loadSources}
+                  trigger={
+                    <Button variant="outline">
+                      <HardDrive className="mr-2 h-4 w-4" />
+                      Drive追加
+                    </Button>
+                  }
+                />
               </div>
-              <ScrollArea className="h-64">
-                {searchResults.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">結果なし</p>
-                ) : (
-                  <div className="space-y-2">
-                    {searchResults.map((chunk) => (
-                      <div key={chunk.id} className="p-3 rounded-lg border border-border">
-                        <p className="text-sm text-foreground line-clamp-3">{chunk.content}</p>
-                        <p className="text-xs text-muted-foreground mt-1">チャンク #{chunk.chunk_index}</p>
-                      </div>
-                    ))}
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">ソース（{sources.length}）</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isLoading && sources.length === 0 ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    </div>
+                  ) : sources.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-8">ソースなし</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {sources.map((source) => {
+                        const meta = getSourceMeta(source);
+                        const isSyncing = syncingIds.has(source.id) || source.status === "processing";
+
+                        return (
+                          <div
+                            key={source.id}
+                            className="flex items-center justify-between p-3 rounded-lg border border-border"
+                          >
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-foreground truncate">{source.name}</p>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <span>{sourceTypeLabels[source.type] ?? source.type}</span>
+                                  {meta?.chunks && <span>・{meta.chunks}チャンク</span>}
+                                  {source.last_synced_at && (
+                                    <span>・{new Date(source.last_synced_at).toLocaleString()}</span>
+                                  )}
+                                </div>
+                                {source.status === "error" && meta?.error && (
+                                  <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                                    <AlertCircle className="h-3 w-3" />
+                                    {meta.error.slice(0, 100)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge className={statusColors[source.status] ?? "bg-gray-100"}>
+                                {statusLabels[source.status] ?? source.status}
+                              </Badge>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleSync(source.id)}
+                                disabled={isSyncing}
+                                title="再同期"
+                              >
+                                <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">検索</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="検索…"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && searchKnowledge()}
+                    />
+                    <Button onClick={searchKnowledge} disabled={isSearching}>
+                      {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    </Button>
                   </div>
-                )}
-              </ScrollArea>
-            </CardContent>
-          </Card>
+                  <ScrollArea className="h-64">
+                    {searchResults.length === 0 ? (
+                      <p className="text-muted-foreground text-center py-8">結果なし</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {searchResults.map((chunk) => (
+                          <div key={chunk.id} className="p-3 rounded-lg border border-border">
+                            <p className="text-sm text-foreground line-clamp-3">{chunk.content}</p>
+                            <p className="text-xs text-muted-foreground mt-1">チャンク #{chunk.chunk_index}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="insights" className="mt-4">
+              <SharedInsightsTab />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </AppLayout>
