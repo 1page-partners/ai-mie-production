@@ -422,7 +422,7 @@ export type Database = {
           {
             foreignKeyName: "origin_decision_profiles_decision_id_fkey"
             columns: ["decision_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "origin_decisions"
             referencedColumns: ["id"]
           },
