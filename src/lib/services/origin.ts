@@ -195,6 +195,24 @@
  export async function isOrigin(): Promise<boolean> {
    return hasRole("origin");
  }
+
+export async function canAccessOriginPages(): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { data, error } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", user.id)
+    .in("role", ["admin", "origin"]);
+
+  if (error) {
+    console.error("Error checking origin access:", error);
+    return false;
+  }
+
+  return (data?.length ?? 0) > 0;
+}
  
  // =============================================
  // Setup Session Service
