@@ -27,17 +27,15 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Navigate to="/chat" replace />} />
           <Route path="/login" element={<LoginPage />} />
-          {/* TEMP: 認証バイパス（本番前に必ず ProtectedRoute を戻してください） */}
-          <Route path="/chat" element={<ChatPage />} />
-          <Route path="/memory" element={<MemoryPage />} />
-          <Route path="/knowledge" element={<KnowledgePage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/admin" element={<AdminPage />} />
-           {/* Origin Routes */}
-           <Route path="/setup-origin" element={<SetupOriginPage />} />
-           <Route path="/origin-incidents" element={<OriginIncidentsPage />} />
-           <Route path="/origin-feedback" element={<OriginFeedbackPage />} />
-           <Route path="/setup-review" element={<SetupReviewPage />} />
+          <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+          <Route path="/memory" element={<ProtectedRoute><MemoryPage /></ProtectedRoute>} />
+          <Route path="/knowledge" element={<ProtectedRoute><KnowledgePage /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+          <Route path="/setup-origin" element={<ProtectedRoute><SetupOriginPage /></ProtectedRoute>} />
+          <Route path="/origin-incidents" element={<ProtectedRoute><OriginIncidentsPage /></ProtectedRoute>} />
+          <Route path="/origin-feedback" element={<ProtectedRoute><OriginFeedbackPage /></ProtectedRoute>} />
+          <Route path="/setup-review" element={<ProtectedRoute><SetupReviewPage /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
