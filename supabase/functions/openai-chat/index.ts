@@ -391,6 +391,7 @@ serve(async (req) => {
   const OPENAI_MODEL_CHAT = Deno.env.get("OPENAI_MODEL_CHAT") ?? "gpt-4.1-mini";
   const OPENAI_MODEL_EMBED = Deno.env.get("OPENAI_MODEL_EMBED") ?? "text-embedding-3-small";
   const EMBED_DIM = Number(Deno.env.get("EMBED_DIM") ?? "1536");
+  const OPENAI_PROMPT_ID = Deno.env.get("OPENAI_PROMPT_ID") ?? null;
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     return new Response(JSON.stringify({ error: "Missing SUPABASE_URL/SUPABASE_ANON_KEY" }), {
@@ -691,35 +692,70 @@ serve(async (req) => {
           });
 
         // 6) OpenAIに送るmessages構築
-        const system = buildSystemPrompt({
-          memories: memoryMatches,
-          knowledge: knowledgeMatches,
-          principles: originPrinciples,
-          decisions: originDecisions,
-        });
+        // Build context for injection into prompt
+        const contextData = buildSystemPrompt({
+           memories: memoryMatches,
+           knowledge: knowledgeMatches,
+           principles: originPrinciples,
+           decisions: originDecisions,
+         });
 
-        const openaiReq = {
-          model: OPENAI_MODEL_CHAT,
-          stream: true,
-          messages: [
-            { role: "system", content: system },
-            ...history,
-            { role: "user", content: userText },
-          ],
-        };
+        // Use Responses API with stored prompt if OPENAI_PROMPT_ID is set
+        let openaiRes: Response;
 
-        const openaiRes = await fetchWithTimeout(
-          "https://api.openai.com/v1/chat/completions",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${OPENAI_API_KEY}`,
+        if (OPENAI_PROMPT_ID) {
+          // Use Responses API with stored prompt
+          const responsesReq = {
+            model: OPENAI_MODEL_CHAT,
+            stream: true,
+            input: [
+              {
+                role: "user",
+                content: `${contextData}\n\n---\n\n会話履歴:\n${history.map((h) => `${h.role}: ${h.content}`).join("\n")}\n\n---\n\nユーザーの質問: ${userText}`,
+              },
+            ],
+            instructions: {
+              id: OPENAI_PROMPT_ID,
             },
-            body: JSON.stringify(openaiReq),
-          },
-          120_000,
-        );
+          };
+
+          openaiRes = await fetchWithTimeout(
+            "https://api.openai.com/v1/responses",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${OPENAI_API_KEY}`,
+              },
+              body: JSON.stringify(responsesReq),
+            },
+            120_000,
+          );
+        } else {
+          // Fallback to Chat Completions API
+          const openaiReq = {
+            model: OPENAI_MODEL_CHAT,
+            stream: true,
+            messages: [
+              { role: "system", content: contextData },
+              ...history,
+              { role: "user", content: userText },
+            ],
+          };
+
+          openaiRes = await fetchWithTimeout(
+            "https://api.openai.com/v1/chat/completions",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${OPENAI_API_KEY}`,
+              },
+              body: JSON.stringify(openaiReq),
+            },
+            120_000,
+          );
+        }
 
         if (!openaiRes.ok || !openaiRes.body) {
           const raw = await openaiRes.text();
@@ -758,9 +794,12 @@ serve(async (req) => {
             const choices = parsedObj?.choices as Array<Record<string, unknown>> | undefined;
             const delta = choices?.[0]?.delta as Record<string, unknown> | undefined;
             const content = delta?.content as string | undefined;
-            if (typeof content === "string" && content.length) {
-              fullText += content;
-              writeSse(controller, { type: "delta", delta: content });
+            // Responses API uses different structure
+            const textDelta = (parsedObj as any)?.delta as string | undefined;
+            const outputContent = textDelta ?? content;
+            if (typeof outputContent === "string" && outputContent.length) {
+              fullText += outputContent;
+              writeSse(controller, { type: "delta", delta: outputContent });
             }
           }
         }
