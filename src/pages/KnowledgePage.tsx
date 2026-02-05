@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Progress } from "@/components/ui/progress";
-import { Upload, Search, FileText, Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { Upload, Search, FileText, Loader2, RefreshCw, AlertCircle, StickyNote } from "lucide-react";
+import { AddNotionDialog } from "@/components/knowledge/AddNotionDialog";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
@@ -164,6 +164,15 @@ export default function KnowledgePage() {
                 )}
                 PDFアップロード
               </Button>
+              <AddNotionDialog
+                onSuccess={loadSources}
+                trigger={
+                  <Button variant="outline">
+                    <StickyNote className="mr-2 h-4 w-4" />
+                    Notion追加
+                  </Button>
+                }
+              />
             </div>
           </div>
 

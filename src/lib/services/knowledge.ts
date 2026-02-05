@@ -4,6 +4,12 @@ import type { Tables } from "@/integrations/supabase/types";
 export type KnowledgeSource = Tables<"knowledge_sources">;
 export type KnowledgeChunk = Tables<"knowledge_chunks">;
 
+export interface NotionSourceInput {
+  name: string;
+  pageId: string;
+  accessToken: string;
+}
+
 export const knowledgeService = {
   async listSources() {
     const { data, error } = await supabase
@@ -12,6 +18,48 @@ export const knowledgeService = {
       .order("created_at", { ascending: false });
     if (error) throw error;
     return data ?? [];
+  },
+
+  async addNotionSource(input: NotionSourceInput): Promise<KnowledgeSource> {
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id;
+    if (!userId) throw new Error("Not authenticated");
+
+    // Extract page ID from URL if needed
+    let pageId = input.pageId.trim();
+    const urlMatch = pageId.match(/([a-f0-9]{32})/i);
+    if (urlMatch) {
+      pageId = urlMatch[1];
+    }
+    // Format with dashes if needed
+    if (pageId.length === 32 && !pageId.includes("-")) {
+      pageId = `${pageId.slice(0, 8)}-${pageId.slice(8, 12)}-${pageId.slice(12, 16)}-${pageId.slice(16, 20)}-${pageId.slice(20)}`;
+    }
+
+    const { data: source, error: insertError } = await supabase
+      .from("knowledge_sources")
+      .insert({
+        user_id: userId,
+        name: input.name,
+        type: "notion",
+        status: "pending",
+        external_id_or_path: pageId,
+        meta: { access_token: input.accessToken },
+      })
+      .select()
+      .single();
+    if (insertError) throw insertError;
+
+    // Trigger notion-sync function
+    try {
+      await supabase.functions.invoke("notion-sync", {
+        body: { sourceId: source.id },
+      });
+    } catch (e) {
+      console.error("notion-sync invocation failed:", e);
+    }
+
+    return source;
   },
 
   async getSource(sourceId: string) {
