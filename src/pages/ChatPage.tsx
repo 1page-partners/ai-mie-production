@@ -223,14 +223,15 @@ export default function ChatPage() {
       const token = sessionRes.session?.access_token;
       if (!token) throw new Error("未ログイン");
 
-      const functionUrl = "https://upscuqkxjvhzcriwljjl.supabase.co/functions/v1/openai-chat";
+      const SUPABASE_URL = "https://upscuqkxjvhzcriwljjl.supabase.co";
+      const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVwc2N1cWt4anZoemNyaXdsampsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTYxMjksImV4cCI6MjA4NDA3MjEyOX0.jCF2wIOnjgq-xu5k-7ycRmZDnolLwDl2pgNg97Dh5bo";
+      const functionUrl = `${SUPABASE_URL}/functions/v1/openai-chat`;
       const res = await fetch(functionUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
-          apikey:
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVwc2N1cWt4anZoemNyaXdsampsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTYxMjksImV4cCI6MjA4NDA3MjEyOX0.jCF2wIOnjgq-xu5k-7ycRmZDnolLwDl2pgNg97Dh5bo",
+          apikey: SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({
           conversationId: selectedConversation.id,
