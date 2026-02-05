@@ -1,7 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
-import { MessageSquare, Brain, BookOpen, Settings, Sparkles, Shield } from "lucide-react";
+ import { MessageSquare, Brain, BookOpen, Settings, Sparkles, Shield, FileEdit, Scale, MessageSquarePlus, FileCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsAdmin } from "@/hooks/useAdmin";
+ import { useIsOrigin } from "@/hooks/useOrigin";
 
 interface AppSidebarProps {
   mobile?: boolean;
@@ -21,8 +22,25 @@ const adminNavItems = [
 export function AppSidebar({ mobile = false }: AppSidebarProps) {
   const location = useLocation();
   const { data: isAdmin } = useIsAdmin();
+   const { data: isOrigin } = useIsOrigin();
 
-  const allNavItems = isAdmin ? [...navItems, ...adminNavItems] : navItems;
+   const originNavItems = [
+     { path: "/setup-origin", label: "セットアップ", icon: FileEdit },
+     { path: "/origin-incidents", label: "判断事例", icon: Scale },
+     { path: "/origin-feedback", label: "フィードバック", icon: MessageSquarePlus },
+   ];
+ 
+   const adminExtraItems = [
+     { path: "/setup-review", label: "セットアップ審査", icon: FileCheck },
+   ];
+ 
+   let allNavItems = [...navItems];
+   if (isOrigin) {
+     allNavItems = [...allNavItems, ...originNavItems];
+   }
+   if (isAdmin) {
+     allNavItems = [...allNavItems, ...adminNavItems, ...adminExtraItems];
+   }
 
   // Mobile layout - horizontal list with labels
   if (mobile) {
