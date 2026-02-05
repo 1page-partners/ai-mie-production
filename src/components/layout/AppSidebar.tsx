@@ -35,7 +35,7 @@ export function AppSidebar({ mobile = false }: AppSidebarProps) {
    ];
  
    let allNavItems = [...navItems];
-   if (isOrigin) {
+  if (isOrigin || isAdmin) {
      allNavItems = [...allNavItems, ...originNavItems];
    }
    if (isAdmin) {
