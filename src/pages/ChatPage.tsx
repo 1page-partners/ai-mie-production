@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { ChevronLeft } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatArea } from "@/components/chat/ChatArea";
@@ -9,9 +10,12 @@ import { conversationsService, type Conversation, type Message } from "@/lib/ser
 import type { Memory, KnowledgeChunk } from "@/lib/services/context";
 import { feedbackService } from "@/lib/services/feedback";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Button } from "@/components/ui/button";
 
 export default function ChatPage() {
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -332,6 +336,64 @@ export default function ChatPage() {
     }
   };
 
+  const handleBack = () => {
+    setSelectedConversation(null);
+    setMessages([]);
+    setReferencedMemories([]);
+    setReferencedChunks([]);
+  };
+
+  // Mobile layout
+  if (isMobile) {
+    return (
+      <AppLayout>
+        <div className="flex h-full flex-col">
+          {selectedConversation ? (
+            <>
+              {/* Mobile chat header with back button */}
+              <div className="flex items-center gap-2 border-b border-border p-2 bg-muted/30">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleBack}>
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <span className="flex-1 truncate text-sm font-medium">
+                  {selectedConversation.title || "無題"}
+                </span>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <ChatArea
+                  conversationId={selectedConversation.id}
+                  messages={messages}
+                  onSendMessage={sendMessage}
+                  onSubmitFeedback={submitFeedback}
+                  isSending={isSending}
+                  hasConversation={true}
+                />
+              </div>
+              <ContextPanel
+                memories={referencedMemories}
+                chunks={referencedChunks}
+              />
+            </>
+          ) : (
+            <ConversationList
+              conversations={conversations}
+              selectedId={selectedConversation?.id}
+              onSelect={setSelectedConversation}
+              onCreate={createConversation}
+              onUpdateTitle={updateConversationTitle}
+              onArchive={archiveConversation}
+              onUnarchive={unarchiveConversation}
+              isLoading={isLoading}
+              showArchived={showArchived}
+              onToggleArchived={setShowArchived}
+            />
+          )}
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Desktop layout
   return (
     <AppLayout>
       <div className="flex h-full">
