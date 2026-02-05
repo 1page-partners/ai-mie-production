@@ -390,6 +390,125 @@ export type Database = {
           },
         ]
       }
+      origin_decision_profiles: {
+        Row: {
+          abstracted_context: string | null
+          created_at: string
+          decision_id: string
+          embedding: string | null
+          extracted_logic: Json | null
+          id: string
+          raw_answer: Json
+        }
+        Insert: {
+          abstracted_context?: string | null
+          created_at?: string
+          decision_id: string
+          embedding?: string | null
+          extracted_logic?: Json | null
+          id?: string
+          raw_answer: Json
+        }
+        Update: {
+          abstracted_context?: string | null
+          created_at?: string
+          decision_id?: string
+          embedding?: string | null
+          extracted_logic?: Json | null
+          id?: string
+          raw_answer?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "origin_decision_profiles_decision_id_fkey"
+            columns: ["decision_id"]
+            isOneToOne: false
+            referencedRelation: "origin_decisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      origin_decisions: {
+        Row: {
+          confidence: number
+          context_conditions: string | null
+          created_at: string
+          decision: string
+          id: string
+          incident_key: string
+          non_negotiables: string | null
+          reasoning: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          confidence?: number
+          context_conditions?: string | null
+          created_at?: string
+          decision: string
+          id?: string
+          incident_key: string
+          non_negotiables?: string | null
+          reasoning: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          confidence?: number
+          context_conditions?: string | null
+          created_at?: string
+          decision?: string
+          id?: string
+          incident_key?: string
+          non_negotiables?: string | null
+          reasoning?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      origin_principles: {
+        Row: {
+          confidence: number
+          created_at: string
+          description: string
+          embedding: string | null
+          id: string
+          polarity: string | null
+          principle_key: string
+          principle_label: string
+          source_incident_ids: string[] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          description: string
+          embedding?: string | null
+          id?: string
+          polarity?: string | null
+          principle_key: string
+          principle_label: string
+          source_incident_ids?: string[] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          description?: string
+          embedding?: string | null
+          id?: string
+          polarity?: string | null
+          principle_key?: string
+          principle_label?: string
+          source_incident_ids?: string[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -440,6 +559,89 @@ export type Database = {
           id?: string
           name?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      setup_answers: {
+        Row: {
+          answer_exceptions: string | null
+          answer_rationale: string | null
+          answer_rule: string
+          created_at: string
+          id: string
+          proposed_confidence: number
+          proposed_type: Database["public"]["Enums"]["ai_mie_memory_type"]
+          question_key: string
+          question_text: string
+          session_id: string
+          updated_at: string
+        }
+        Insert: {
+          answer_exceptions?: string | null
+          answer_rationale?: string | null
+          answer_rule: string
+          created_at?: string
+          id?: string
+          proposed_confidence?: number
+          proposed_type?: Database["public"]["Enums"]["ai_mie_memory_type"]
+          question_key: string
+          question_text: string
+          session_id: string
+          updated_at?: string
+        }
+        Update: {
+          answer_exceptions?: string | null
+          answer_rationale?: string | null
+          answer_rule?: string
+          created_at?: string
+          id?: string
+          proposed_confidence?: number
+          proposed_type?: Database["public"]["Enums"]["ai_mie_memory_type"]
+          question_key?: string
+          question_text?: string
+          session_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setup_answers_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "setup_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      setup_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submitted_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -559,6 +761,39 @@ export type Database = {
           updated_at: string
         }[]
       }
+      match_origin_decisions: {
+        Args: {
+          match_count?: number
+          p_user_id?: string
+          query_embedding: string
+        }
+        Returns: {
+          confidence: number
+          context_conditions: string
+          decision: string
+          id: string
+          incident_key: string
+          non_negotiables: string
+          reasoning: string
+          score: number
+        }[]
+      }
+      match_origin_principles: {
+        Args: {
+          match_count?: number
+          p_user_id?: string
+          query_embedding: string
+        }
+        Returns: {
+          confidence: number
+          description: string
+          id: string
+          polarity: string
+          principle_key: string
+          principle_label: string
+          score: number
+        }[]
+      }
     }
     Enums: {
       ai_mie_knowledge_source_type: "gdocs" | "pdf" | "notion" | "gdrive"
@@ -569,7 +804,7 @@ export type Database = {
         | "procedure"
         | "goal"
         | "context"
-      app_role: "admin" | "user"
+      app_role: "admin" | "user" | "origin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -706,7 +941,7 @@ export const Constants = {
         "goal",
         "context",
       ],
-      app_role: ["admin", "user"],
+      app_role: ["admin", "user", "origin"],
     },
   },
 } as const

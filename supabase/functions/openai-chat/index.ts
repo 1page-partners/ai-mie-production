@@ -29,6 +29,27 @@ type KnowledgeMatchRow = {
   score: number;
 };
 
+ type OriginPrincipleRow = {
+   id: string;
+   principle_key: string;
+   principle_label: string;
+   description: string;
+   polarity: string | null;
+   confidence: number;
+   score: number;
+ };
+ 
+ type OriginDecisionRow = {
+   id: string;
+   incident_key: string;
+   decision: string;
+   reasoning: string;
+   context_conditions: string | null;
+   non_negotiables: string | null;
+   confidence: number;
+   score: number;
+ };
+ 
 type MemoryCandidate = {
   type: "fact" | "preference" | "procedure" | "goal" | "context";
   title: string;
@@ -111,32 +132,64 @@ function embeddingToPgVectorString(embedding: number[]) {
 function buildSystemPrompt(input: {
   memories: Array<MemoryRow & { score: number | null }>;
   knowledge: Array<{ id: string; source_name: string; chunk_index: number; content: string; meta: unknown; score: number | null }>;
+   principles?: OriginPrincipleRow[];
+   decisions?: OriginDecisionRow[];
 }) {
-  const memoryLines = input.memories
+   // Separate pinned (constitution) memories from regular memories
+   const pinnedMemories = input.memories.filter((m) => m.pinned);
+   const regularMemories = input.memories.filter((m) => !m.pinned);
+ 
+   const constitutionLines = pinnedMemories
+     .map((m) => `- [${m.type}] ${m.title}: ${m.content}`)
+     .join("\n");
+ 
+   const principleLines = (input.principles ?? [])
+     .map((p) => `- ${p.principle_label}: ${p.description} (confidence: ${Math.round(p.confidence * 100)}%)`)
+     .join("\n");
+ 
+   const decisionLines = (input.decisions ?? [])
+     .map(
+       (d) =>
+         `- [${d.incident_key}] 判断: ${d.decision}\n  理由: ${d.reasoning}${d.non_negotiables ? `\n  譲れない点: ${d.non_negotiables}` : ""}`
+     )
+     .join("\n");
+ 
+   const memoryLines = regularMemories
     .map(
       (m) =>
-        `- (id:${m.id} score:${m.score ?? "null"} pinned:${m.pinned} confidence:${m.confidence}) title:${m.title} / content:${m.content}`,
+         `- (id:${m.id} score:${m.score ?? "null"} confidence:${m.confidence}) [${m.type}] ${m.title}: ${m.content}`,
     )
     .join("\n");
 
   const knowledgeLines = input.knowledge
     .map(
       (k) =>
-        `- (chunk_id:${k.id} score:${k.score ?? "null"} source:${k.source_name} meta:${JSON.stringify(k.meta ?? {})}) content:${k.content}`,
+         `- (chunk_id:${k.id} score:${k.score ?? "null"} source:${k.source_name}) ${k.content}`,
     )
     .join("\n");
 
-  return `[CONTEXT]
+   return `[CONSTITUTION - 常時遵守する基本方針]
+ ${constitutionLines || "- (none)"}
 
-## MEMORY（長期記憶：優先）
+ [ORIGIN_PRINCIPLES - 判断軸]
+ ${principleLines || "- (none)"}
+ 
+ [ORIGIN_DECISION_EXAMPLES - 参考判断例]
+ ${decisionLines || "- (none)"}
+ 
+ [MEMORY - 長期記憶]
 ${memoryLines || "- (none)"}
 
-## KNOWLEDGE（資料/マニュアル）
+ [KNOWLEDGE - 資料/マニュアル]
 ${knowledgeLines || "- (none)"}
 
-## RULES
-- 可能な限り MEMORY/KNOWLEDGE を根拠に回答する
-- 不明なら不明と言う
+ [RULES]
+ - CONSTITUTIONに記載された方針は最優先で遵守する
+ - ORIGIN_PRINCIPLESに基づいて判断を行う
+ - ORIGIN_DECISION_EXAMPLESを参考に、類似状況では同様の判断傾向を維持する
+ - MEMORY/KNOWLEDGEを根拠に回答する
+ - 判断に迷う場合は、ORIGIN_PRINCIPLESの判断軸を参照して一貫性のある回答をする
+ - 不明な場合は不明と認める
 - 回答末尾に参照IDをJSONで必ず付与する：\n  {"memory_ids":[...],"knowledge_chunk_ids":[...]}
 
 [/CONTEXT]`;
@@ -546,7 +599,82 @@ serve(async (req) => {
           });
         }
 
-        // 4) history（直近N件）
+        // 4) Origin Principles & Decisions (for origin-style reasoning)
+        let originPrinciples: OriginPrincipleRow[] = [];
+        let originDecisions: OriginDecisionRow[] = [];
+
+        // Fetch origin principles (similarity search)
+        const principlesRpc = await supabase.rpc("match_origin_principles", {
+          query_embedding: embeddingStr,
+          match_count: 5,
+          p_user_id: null, // Get any user's principles for now
+        });
+
+        if (!principlesRpc.error && Array.isArray(principlesRpc.data)) {
+          originPrinciples = principlesRpc.data
+            .filter((p: Record<string, unknown>) => typeof p.score === "number" && p.score > 0.5)
+            .map((p: Record<string, unknown>) => ({
+              id: String(p.id),
+              principle_key: String(p.principle_key),
+              principle_label: String(p.principle_label),
+              description: String(p.description),
+              polarity: p.polarity ? String(p.polarity) : null,
+              confidence: Number(p.confidence ?? 0),
+              score: Number(p.score),
+            }));
+        }
+
+        // Fetch origin decisions (similarity search)
+        const decisionsRpc = await supabase.rpc("match_origin_decisions", {
+          query_embedding: embeddingStr,
+          match_count: 3,
+          p_user_id: null, // Get any user's decisions for now
+        });
+
+        if (!decisionsRpc.error && Array.isArray(decisionsRpc.data)) {
+          originDecisions = decisionsRpc.data
+            .filter((d: Record<string, unknown>) => typeof d.score === "number" && d.score > 0.5)
+            .map((d: Record<string, unknown>) => ({
+              id: String(d.id),
+              incident_key: String(d.incident_key),
+              decision: String(d.decision),
+              reasoning: String(d.reasoning),
+              context_conditions: d.context_conditions ? String(d.context_conditions) : null,
+              non_negotiables: d.non_negotiables ? String(d.non_negotiables) : null,
+              confidence: Number(d.confidence ?? 0),
+              score: Number(d.score),
+            }));
+        }
+
+        // Also fetch pinned memories (constitution) unconditionally
+        const { data: pinnedMemories } = await supabase
+          .from("memories")
+          .select("id,type,title,content,confidence,pinned,updated_at")
+          .eq("is_active", true)
+          .eq("status", "approved")
+          .eq("pinned", true)
+          .limit(20);
+
+        if (pinnedMemories && pinnedMemories.length > 0) {
+          // Add pinned memories that aren't already in memoryMatches
+          const existingIds = new Set(memoryMatches.map((m) => m.id));
+          for (const pm of pinnedMemories) {
+            if (!existingIds.has(pm.id)) {
+              memoryMatches.unshift({
+                id: pm.id,
+                type: pm.type,
+                title: pm.title,
+                content: pm.content,
+                confidence: pm.confidence,
+                pinned: pm.pinned,
+                updated_at: pm.updated_at,
+                score: null,
+              });
+            }
+          }
+        }
+
+        // 5) history（直近N件）
         const { data: historyRows, error: histErr } = await supabase
           .from("conversation_messages")
           .select("role,content,created_at")
@@ -562,8 +690,13 @@ serve(async (req) => {
             return { role: msg.role as string, content: msg.content as string };
           });
 
-        // 5) OpenAIに送るmessages構築
-        const system = buildSystemPrompt({ memories: memoryMatches, knowledge: knowledgeMatches });
+        // 6) OpenAIに送るmessages構築
+        const system = buildSystemPrompt({
+          memories: memoryMatches,
+          knowledge: knowledgeMatches,
+          principles: originPrinciples,
+          decisions: originDecisions,
+        });
 
         const openaiReq = {
           model: OPENAI_MODEL_CHAT,

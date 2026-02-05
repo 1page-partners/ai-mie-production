@@ -11,6 +11,10 @@ import KnowledgePage from "./pages/KnowledgePage";
 import SettingsPage from "./pages/SettingsPage";
 import AdminPage from "./pages/AdminPage";
 import NotFound from "./pages/NotFound";
+ import SetupOriginPage from "./pages/SetupOriginPage";
+ import OriginIncidentsPage from "./pages/OriginIncidentsPage";
+ import OriginFeedbackPage from "./pages/OriginFeedbackPage";
+ import SetupReviewPage from "./pages/SetupReviewPage";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +33,11 @@ const App = () => (
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/admin" element={<AdminPage />} />
+           {/* Origin Routes */}
+           <Route path="/setup-origin" element={<SetupOriginPage />} />
+           <Route path="/origin-incidents" element={<OriginIncidentsPage />} />
+           <Route path="/origin-feedback" element={<OriginFeedbackPage />} />
+           <Route path="/setup-review" element={<SetupReviewPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
