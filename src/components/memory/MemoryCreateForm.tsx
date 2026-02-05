@@ -7,7 +7,7 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { TablesInsert } from "@/integrations/supabase/types";
 
-type MemoryType = "fact" | "preference" | "procedure" | "goal" | "context";
+type MemoryType = "fact" | "preference" | "procedure" | "goal" | "context" | "episodic";
 
 interface MemoryCreateFormProps {
   onSubmit: (memory: Omit<TablesInsert<"memories">, "user_id">) => void;
@@ -19,6 +19,7 @@ export function MemoryCreateForm({ onSubmit, onCancel }: MemoryCreateFormProps) 
   const [content, setContent] = useState("");
   const [type, setType] = useState<MemoryType>("fact");
   const [confidence, setConfidence] = useState(0.7);
+  const [episodeAt, setEpisodeAt] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,10 +28,11 @@ export function MemoryCreateForm({ onSubmit, onCancel }: MemoryCreateFormProps) 
     onSubmit({
       title: title.trim(),
       content: content.trim(),
-      type,
+      type: type as any,
       confidence,
       is_active: true,
       pinned: false,
+      episode_at: episodeAt ? new Date(episodeAt).toISOString() : null,
     });
   };
 
@@ -72,6 +74,7 @@ export function MemoryCreateForm({ onSubmit, onCancel }: MemoryCreateFormProps) 
               <SelectItem value="procedure">手順</SelectItem>
               <SelectItem value="goal">目標</SelectItem>
               <SelectItem value="context">文脈</SelectItem>
+              <SelectItem value="episodic">エピソード</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -88,6 +91,21 @@ export function MemoryCreateForm({ onSubmit, onCancel }: MemoryCreateFormProps) 
           />
         </div>
       </div>
+
+      {type === "episodic" && (
+        <div className="space-y-2">
+          <Label htmlFor="episodeAt">出来事の日時</Label>
+          <Input
+            id="episodeAt"
+            type="datetime-local"
+            value={episodeAt}
+            onChange={(e) => setEpisodeAt(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            この会話・出来事がいつ発生したかを記録します
+          </p>
+        </div>
+      )}
 
       <div className="flex justify-end gap-2 pt-4">
         <Button type="button" variant="outline" onClick={onCancel}>
