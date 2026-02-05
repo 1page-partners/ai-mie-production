@@ -1,15 +1,18 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsOrigin } from "@/hooks/useOrigin";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  requireOriginAccess?: boolean;
 }
 
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, requireOriginAccess = false }: ProtectedRouteProps) {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
+  const { data: hasOriginAccess, isLoading: originLoading } = useIsOrigin();
 
-  if (loading) {
+  if (loading || (requireOriginAccess && originLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse text-muted-foreground">読み込み中...</div>
@@ -19,6 +22,10 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (requireOriginAccess && !hasOriginAccess) {
+    return <Navigate to="/chat" replace />;
   }
 
   return <>{children}</>;

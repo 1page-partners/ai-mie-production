@@ -10,9 +10,7 @@ interface AppSidebarProps {
 
 const navItems = [
   { path: "/chat", label: "チャット", icon: MessageSquare },
-  { path: "/memory", label: "メモリ", icon: Brain },
   { path: "/knowledge", label: "ナレッジ", icon: BookOpen },
-  { path: "/settings", label: "設定", icon: Settings },
 ];
 
 const adminNavItems = [
@@ -25,6 +23,8 @@ export function AppSidebar({ mobile = false }: AppSidebarProps) {
    const { data: isOrigin } = useIsOrigin();
 
    const originNavItems = [
+     { path: "/memory", label: "メモリ", icon: Brain },
+     { path: "/settings", label: "設定", icon: Settings },
      { path: "/setup-origin", label: "セットアップ", icon: FileEdit },
      { path: "/origin-incidents", label: "判断事例", icon: Scale },
      { path: "/origin-feedback", label: "フィードバック", icon: MessageSquarePlus },
