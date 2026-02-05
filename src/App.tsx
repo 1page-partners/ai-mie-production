@@ -28,14 +28,14 @@ const App = () => (
           <Route path="/" element={<Navigate to="/chat" replace />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
-          <Route path="/memory" element={<ProtectedRoute><MemoryPage /></ProtectedRoute>} />
+          <Route path="/memory" element={<ProtectedRoute requireOriginAccess><MemoryPage /></ProtectedRoute>} />
           <Route path="/knowledge" element={<ProtectedRoute><KnowledgePage /></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute requireOriginAccess><SettingsPage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
-          <Route path="/setup-origin" element={<ProtectedRoute><SetupOriginPage /></ProtectedRoute>} />
-          <Route path="/origin-incidents" element={<ProtectedRoute><OriginIncidentsPage /></ProtectedRoute>} />
-          <Route path="/origin-feedback" element={<ProtectedRoute><OriginFeedbackPage /></ProtectedRoute>} />
-          <Route path="/setup-review" element={<ProtectedRoute><SetupReviewPage /></ProtectedRoute>} />
+          <Route path="/setup-origin" element={<ProtectedRoute requireOriginAccess><SetupOriginPage /></ProtectedRoute>} />
+          <Route path="/origin-incidents" element={<ProtectedRoute requireOriginAccess><OriginIncidentsPage /></ProtectedRoute>} />
+          <Route path="/origin-feedback" element={<ProtectedRoute requireOriginAccess><OriginFeedbackPage /></ProtectedRoute>} />
+          <Route path="/setup-review" element={<ProtectedRoute requireOriginAccess><SetupReviewPage /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
