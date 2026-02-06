@@ -1,8 +1,9 @@
 import { Link, useLocation } from "react-router-dom";
- import { MessageSquare, Brain, BookOpen, Settings, Sparkles, Shield, FileEdit, Scale, MessageSquarePlus, FileCheck } from "lucide-react";
+import { MessageSquare, Brain, BookOpen, Settings, Shield, FileEdit, Scale, MessageSquarePlus, FileCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsAdmin } from "@/hooks/useAdmin";
- import { useIsOrigin } from "@/hooks/useOrigin";
+import { useIsOrigin } from "@/hooks/useOrigin";
+import aiMieIcon from "@/assets/ai-mie-icon.png";
 
 interface AppSidebarProps {
   mobile?: boolean;
@@ -74,8 +75,8 @@ export function AppSidebar({ mobile = false }: AppSidebarProps) {
   // Desktop layout - icon only
   return (
     <aside className="flex h-full w-16 flex-col items-center bg-sidebar py-4 border-r border-sidebar-border">
-      <div className="mb-8 flex h-10 w-10 items-center justify-center rounded-lg bg-sidebar-primary">
-        <Sparkles className="h-5 w-5 text-sidebar-primary-foreground" />
+      <div className="mb-8 flex h-10 w-10 items-center justify-center rounded-lg overflow-hidden">
+        <img src={aiMieIcon} alt="AI-MIE" className="h-10 w-10 object-cover" />
       </div>
       
       <nav className="flex flex-1 flex-col gap-2">
