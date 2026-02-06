@@ -183,8 +183,9 @@ export default function KnowledgePage() {
                   ) : (
                     <Upload className="mr-2 h-4 w-4" />
                   )}
-                  PDFアップロード
+                  ファイルアップロード
                 </Button>
+                {/* Notion/Drive連携は一時的に無効化
                 <AddNotionDialog
                   onSuccess={loadSources}
                   trigger={
@@ -203,6 +204,7 @@ export default function KnowledgePage() {
                     </Button>
                   }
                 />
+                */}
               </div>
 
               <Card>
