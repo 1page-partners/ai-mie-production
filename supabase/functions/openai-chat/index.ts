@@ -876,13 +876,18 @@ serve(async (req) => {
           .order("created_at", { ascending: false })
           .limit(10);
         if (histErr) throw histErr;
-        const history = (historyRows ?? [])
+        // Remove the last entry if it's the user message we just inserted (to avoid duplication)
+        const rawHistory = (historyRows ?? [])
           .slice()
           .reverse()
           .map((m: unknown) => {
             const msg = m as Record<string, unknown>;
             return { role: msg.role as string, content: msg.content as string };
           });
+        // The just-inserted user message is included in history; drop it so step 10 doesn't duplicate it
+        const history = rawHistory.length > 0 && rawHistory[rawHistory.length - 1].role === "user"
+          ? rawHistory.slice(0, -1)
+          : rawHistory;
 
         // 9) Build context with shared insights and episodic memories
         const contextData = buildSystemPrompt({
