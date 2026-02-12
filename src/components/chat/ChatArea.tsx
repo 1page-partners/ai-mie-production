@@ -34,14 +34,12 @@ export function ChatArea({
   hasConversation,
 }: ChatAreaProps) {
   const [input, setInput] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const [feedbackMessageId, setFeedbackMessageId] = useState<string | null>(null);
   const [feedbackComment, setFeedbackComment] = useState("");
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleSend = () => {
@@ -81,7 +79,7 @@ export function ChatArea({
 
   return (
     <div className="flex flex-1 flex-col bg-background">
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+      <ScrollArea className="flex-1 p-4">
         <div className="space-y-4 max-w-3xl mx-auto">
           {messages.map((message) => (
             <div
@@ -154,6 +152,7 @@ export function ChatArea({
               </div>
             </div>
           )}
+          <div ref={bottomRef} />
         </div>
       </ScrollArea>
 
