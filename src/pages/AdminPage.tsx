@@ -3,8 +3,9 @@ import { useIsAdmin } from "@/hooks/useAdmin";
 import { UserManagement } from "@/components/admin/UserManagement";
 import { UsageDashboard } from "@/components/admin/UsageDashboard";
 import { InsightsApproval } from "@/components/admin/InsightsApproval";
+import { ConversationLogs } from "@/components/admin/ConversationLogs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, BarChart3, Users, Lightbulb } from "lucide-react";
+import { Shield, BarChart3, Users, Lightbulb, MessageSquare } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -55,6 +56,11 @@ export default function AdminPage() {
                   <span className="hidden sm:inline">Insights承認</span>
                   <span className="sm:hidden">承認</span>
                 </TabsTrigger>
+                <TabsTrigger value="logs" className="gap-2 flex-1 md:flex-none">
+                  <MessageSquare className="h-4 w-4" />
+                  <span className="hidden sm:inline">会話ログ</span>
+                  <span className="sm:hidden">ログ</span>
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="dashboard">
@@ -67,6 +73,10 @@ export default function AdminPage() {
 
               <TabsContent value="insights">
                 <InsightsApproval />
+              </TabsContent>
+
+              <TabsContent value="logs">
+                <ConversationLogs />
               </TabsContent>
             </Tabs>
           </div>

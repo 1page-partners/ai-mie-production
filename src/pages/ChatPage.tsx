@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { ChevronLeft } from "lucide-react";
+import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatArea } from "@/components/chat/ChatArea";
@@ -17,6 +18,8 @@ import { Button } from "@/components/ui/button";
 export default function ChatPage() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const { conversationId: urlConversationId } = useParams<{ conversationId?: string }>();
+  const navigate = useNavigate();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -26,6 +29,7 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   const ensureUser = async () => {
     const { data: userRes } = await supabase.auth.getUser();
@@ -47,10 +51,36 @@ export default function ChatPage() {
       } catch (e) {
         console.warn("ensureUser failed", e);
       } finally {
-        loadConversations();
+        const convs = await loadConversations();
+        // If URL has a conversationId, select it
+        if (urlConversationId && convs) {
+          const found = convs.find((c) => c.id === urlConversationId);
+          if (found) {
+            setSelectedConversation(found);
+          } else {
+            // Try loading the conversation directly (might be archived or not in first page)
+            try {
+              const msgs = await conversationsService.listMessages(urlConversationId);
+              // Create a minimal conversation object for display
+              setMessages(msgs);
+              setSelectedConversation({
+                id: urlConversationId,
+                user_id: "",
+                title: "会話",
+                created_at: new Date().toISOString(),
+                archived_at: null,
+                project_id: null,
+              } as Conversation);
+            } catch {
+              toast({ title: "エラー", description: "指定された会話が見つかりません", variant: "destructive" });
+              navigate("/chat", { replace: true });
+            }
+          }
+        }
+        setInitialLoadDone(true);
       }
     })();
-  }, []);
+  }, [urlConversationId]);
 
   useEffect(() => {
     loadConversations();
@@ -80,12 +110,14 @@ export default function ChatPage() {
     try {
       const data = await conversationsService.listConversations({ archived: showArchived });
       setConversations(data);
+      return data;
     } catch (error) {
       toast({
         title: "エラー",
         description: "会話の取得に失敗",
         variant: "destructive",
       });
+      return [];
     } finally {
       setIsLoading(false);
     }
@@ -114,6 +146,7 @@ export default function ChatPage() {
       });
       setConversations(prev => [data, ...prev]);
       setSelectedConversation(data);
+      navigate(`/chat/${data.id}`, { replace: true });
     } catch (error) {
       toast({
         title: "エラー",
@@ -359,6 +392,12 @@ export default function ChatPage() {
     setReferencedMemories([]);
     setReferencedChunks([]);
     setReferencedInsights([]);
+    navigate("/chat", { replace: true });
+  };
+
+  const handleSelectConversation = (conv: Conversation) => {
+    setSelectedConversation(conv);
+    navigate(`/chat/${conv.id}`, { replace: true });
   };
 
   // Mobile layout
@@ -397,7 +436,7 @@ export default function ChatPage() {
             <ConversationList
               conversations={conversations}
               selectedId={selectedConversation?.id}
-              onSelect={setSelectedConversation}
+              onSelect={handleSelectConversation}
               onCreate={createConversation}
               onUpdateTitle={updateConversationTitle}
               onArchive={archiveConversation}
@@ -419,7 +458,7 @@ export default function ChatPage() {
         <ConversationList
           conversations={conversations}
           selectedId={selectedConversation?.id}
-          onSelect={setSelectedConversation}
+          onSelect={handleSelectConversation}
           onCreate={createConversation}
           onUpdateTitle={updateConversationTitle}
           onArchive={archiveConversation}
