@@ -28,6 +28,7 @@ const App = () => (
           <Route path="/" element={<Navigate to="/chat" replace />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+          <Route path="/chat/:conversationId" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
           <Route path="/memory" element={<ProtectedRoute requireOriginAccess><MemoryPage /></ProtectedRoute>} />
           <Route path="/knowledge" element={<ProtectedRoute><KnowledgePage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute requireOriginAccess><SettingsPage /></ProtectedRoute>} />

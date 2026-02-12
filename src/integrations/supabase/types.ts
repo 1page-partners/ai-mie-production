@@ -863,6 +863,30 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_list_conversations: {
+        Args: { p_limit?: number; p_offset?: number; p_user_id?: string }
+        Returns: {
+          archived_at: string
+          created_at: string
+          display_name: string
+          id: string
+          message_count: number
+          title: string
+          user_id: string
+        }[]
+      }
+      admin_list_messages: {
+        Args: { p_conversation_id: string }
+        Returns: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          meta: Json
+          role: string
+          user_id: string
+        }[]
+      }
       get_daily_usage: {
         Args: { p_days?: number }
         Returns: {
